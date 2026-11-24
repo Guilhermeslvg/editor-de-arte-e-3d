@@ -9,11 +9,12 @@ function curS() {
   const P = curP();
   if (state.sid === 'custom' && state.custom) {
     const { w, h } = state.custom;
-    return { id: 'custom', label: `Personalizado · ${fmtCm(w)} × ${fmtCm(h)} cm`, w, h, side: 'front', top: P.mock === 'hoodie' ? 11 : 9 };
+    return { id: 'custom', label: P.digital ? `Personalizado · ${w} × ${h} px` : `Personalizado · ${fmtCm(w)} × ${fmtCm(h)} cm`, w, h, side: 'front', top: P.mock === 'hoodie' ? 11 : 9 };
   }
   return P.sizes.find((s) => s.id === state.sid) || P.sizes[0];
 }
-const sizeTag = () => `${fmtCm(curS().w)}x${fmtCm(curS().h)}cm`;
+const sizeTag = () => (curP().digital ? `${curS().w}x${curS().h}px` : `${fmtCm(curS().w)}x${fmtCm(curS().h)}cm`);
+const sizeName = () => (curP().digital ? `${curS().w} × ${curS().h} px` : `${fmtCm(curS().w)} × ${fmtCm(curS().h)} cm`);
 const unit = () => Math.min(W, H) / 1122;   // pra enfeites/textos nascerem num tamanho bom em qualquer produto
 
 fabric.Object.prototype.set({
@@ -36,7 +37,7 @@ function fit() {
   canvas.setZoom(dw / W);
   $('wrap').style.width = dw + 'px';
   $('wrap').style.height = dh + 'px';
-  canvas.requestRenderAll();
+  canvas.renderAll();
 }
 window.addEventListener('resize', () => { fit(); Mock.resize(); });
 
@@ -113,8 +114,9 @@ $('pSize').onchange = (e) => {
 function applyCustom() {
   const w = parseFloat(String($('customW').value).replace(',', '.'));
   const h = parseFloat(String($('customH').value).replace(',', '.'));
-  if (!(w >= 1 && w <= 200 && h >= 1 && h <= 200)) return;
-  state.custom = { w: Math.round(w * 10) / 10, h: Math.round(h * 10) / 10 }; state.sid = 'custom';
+  const [mn, mx] = curP().digital ? [100, 4000] : [1, 200];
+  if (!(w >= mn && w <= mx && h >= mn && h <= mx)) return;
+  state.custom = curP().digital ? { w: Math.round(w), h: Math.round(h) } : { w: Math.round(w * 10) / 10, h: Math.round(h * 10) / 10 }; state.sid = 'custom';
   fillProductUI(); applyProduct(true);
 }
 ['customW', 'customH'].forEach((id) => $(id).addEventListener('keydown', (e) => { if (e.key === 'Enter') applyCustom(); }));
@@ -124,8 +126,8 @@ function applyProduct(rescale) {
   const P = curP(), S = curS();
   const oldW = W, oldH = H;
   const maxcm = Math.max(S.w, S.h);
-  DPI = maxcm <= 60 ? 300 : maxcm <= 90 ? 200 : 150;
-  W = Math.round((S.w / 2.54) * DPI); H = Math.round((S.h / 2.54) * DPI);
+  if (P.digital) { DPI = 72; W = Math.round(S.w); H = Math.round(S.h); }
+  else { DPI = maxcm <= 60 ? 300 : maxcm <= 90 ? 200 : 150; W = Math.round((S.w / 2.54) * DPI); H = Math.round((S.h / 2.54) * DPI); }
   canvas.backgroundColor = P.transparent ? null : '#ffffff';
   $('wrap').classList.toggle('transparent', !!P.transparent);
   if (rescale && (oldW !== W || oldH !== H)) {
@@ -133,6 +135,7 @@ function applyProduct(rescale) {
     muted = true;
     canvas.getObjects().forEach((o) => {
       if (o === base) return coverBase(o);
+      if (o.data && o.data.kind === 'fundo') return;
       const c = o.getCenterPoint();
       o.set({ scaleX: o.scaleX * k, scaleY: o.scaleY * k });
       o.setPositionByOrigin(new fabric.Point(c.x * kx, c.y * ky), 'center', 'center');
@@ -140,6 +143,7 @@ function applyProduct(rescale) {
     });
     muted = false;
   }
+  refitFundo();
   fit(); updateGuides(); updateInfo();
   Mock.set(P, S, state.color, W, H);
   queueMug(true);
@@ -154,7 +158,9 @@ function updateGuides() {
 }
 function updateInfo() {
   const P = curP(), S = curS();
-  $('sizeInfo').textContent = `${P.name} · ${fmtCm(S.w)} × ${fmtCm(S.h)} cm · sai em ${W} × ${H} px (${DPI} dpi)`;
+  $('sizeInfo').textContent = P.digital ? `${P.name} · ${S.w} × ${S.h} px` : `${P.name} · ${fmtCm(S.w)} × ${fmtCm(S.h)} cm · sai em ${W} × ${H} px (${DPI} dpi)`;
+  $('export').textContent = P.digital ? 'Baixar PNG' : 'Baixar estampa + manual';
+  $('customUnit').textContent = (P.digital ? 'em pixels' : 'em centímetros') + ' · aperta Enter pra aplicar';
   $('previewTitle').textContent = P.na.charAt(0).toUpperCase() + P.na.slice(1);
 }
 
@@ -177,7 +183,7 @@ function setBase(url) {
     applyLock(img, $('lockBase').checked);
     muted = true;
     if (base) canvas.remove(base);
-    canvas.insertAt(img, 0);
+    canvas.insertAt(img, fundoObj() ? 1 : 0);
     base = img;
     muted = false;
     canvas.requestRenderAll(); saveHistory();
@@ -194,12 +200,26 @@ $('swapBase').onchange = (e) => { const f = e.target.files[0]; if (f) readFile(f
 $('removeBase').onclick = () => { if (!base) return; muted = true; canvas.remove(base); base = null; muted = false; canvas.requestRenderAll(); saveHistory(); };
 
 /* ---------- enfeites, emojis, texto, fotos ---------- */
-Object.entries(STICKERS).forEach(([key, s]) => {
-  const b = document.createElement('button');
-  b.title = s.label; b.innerHTML = s.svg(s.color);
-  b.onclick = () => addSticker(key);
-  $('stickers').appendChild(b);
-});
+function chips(box, cats, current, onPick) {
+  box.innerHTML = '';
+  cats.forEach((c) => {
+    const b = document.createElement('button');
+    b.textContent = c; b.className = c === current ? 'on' : '';
+    b.onclick = () => onPick(c);
+    box.appendChild(b);
+  });
+}
+function showStickers(cat) {
+  chips($('stickerCats'), STICKER_CATS, cat, showStickers);
+  const box = $('stickers'); box.innerHTML = '';
+  Object.entries(STICKERS).filter(([, s]) => s.cat === cat).forEach(([key, s]) => {
+    const b = document.createElement('button');
+    b.title = s.label; b.innerHTML = s.svg(s.color);
+    b.onclick = () => addSticker(key);
+    box.appendChild(b);
+  });
+}
+showStickers('Natal');
 function nextPos() {
   const j = () => (Math.random() - 0.5) * 160 * unit();
   return { left: W / 2 + j(), top: H / 2 + j() };
@@ -219,16 +239,52 @@ function addSticker(key) {
     canvas.add(g); canvas.setActiveObject(g); canvas.requestRenderAll();
   });
 }
-const EMOJIS = ['🎄', '❄️', '⛄', '❤️', '⭐', '🎁', '🎅', '🤶', '🦌', '🔔', '🍪', '✨', '🎀', '🕯️', '🧦', '🌟'];
-EMOJIS.forEach((e) => {
+function showEmojis(cat) {
+  chips($('emojiCats'), Object.keys(EMOJI_CATS), cat, showEmojis);
+  const box = $('emojis'); box.innerHTML = '';
+  EMOJI_CATS[cat].forEach((e) => {
+    const b = document.createElement('button');
+    b.textContent = e;
+    b.onclick = () => {
+      const t = new fabric.Text(e, { fontSize: 150 * unit(), fontFamily: '"Apple Color Emoji","Segoe UI Emoji",sans-serif', originX: 'center', originY: 'center', ...nextPos(), data: { kind: 'emoji' } });
+      canvas.add(t); canvas.setActiveObject(t); canvas.requestRenderAll();
+    };
+    box.appendChild(b);
+  });
+}
+showEmojis('Rostos');
+
+/* ---------- fundos prontos ---------- */
+let fundoId = null;
+function fundoObj() { return canvas.getObjects().find((o) => o.data && o.data.kind === 'fundo') || null; }
+function setFundo(id, quiet) {
+  const def = FUNDOS.find((f) => f.id === id);
+  const old = fundoObj();
+  muted = true;
+  if (old) canvas.remove(old);
+  fundoId = null;
+  if (def) {
+    const r = new fabric.Rect({
+      left: 0, top: 0, originX: 'left', originY: 'top', width: W, height: H, strokeWidth: 0,
+      fill: fundoFill(def, W, H, 90 * unit()), selectable: false, evented: false, data: { kind: 'fundo', id },
+    });
+    canvas.insertAt(r, 0);
+    fundoId = id;
+  }
+  muted = false;
+  markFundos();
+  canvas.requestRenderAll();
+  if (!quiet) saveHistory();
+}
+function refitFundo() { const f = fundoObj(); if (f) setFundo(f.data.id, true); }
+function markFundos() { document.querySelectorAll('#fundos button').forEach((b) => b.classList.toggle('on', b.dataset.id === fundoId)); }
+FUNDOS.forEach((f) => {
   const b = document.createElement('button');
-  b.textContent = e;
-  b.onclick = () => {
-    const t = new fabric.Text(e, { fontSize: 150 * unit(), fontFamily: '"Apple Color Emoji","Segoe UI Emoji",sans-serif', originX: 'center', originY: 'center', ...nextPos(), data: { kind: 'emoji' } });
-    canvas.add(t); canvas.setActiveObject(t); canvas.requestRenderAll();
-  };
-  $('emojis').appendChild(b);
+  b.title = f.label; b.dataset.id = f.id; b.style.background = fundoThumbCss(f);
+  b.onclick = () => setFundo(f.id);
+  $('fundos').appendChild(b);
 });
+$('noFundo').onclick = () => setFundo(null);
 $('addText').onclick = async () => {
   const font = 'Pacifico';
   try { await document.fonts.load(`140px "${font}"`); } catch (e) {}
@@ -241,17 +297,29 @@ $('addText').onclick = async () => {
 function readFile(f) {
   return new Promise((res, rej) => { const r = new FileReader(); r.onload = () => res(r.result); r.onerror = rej; r.readAsDataURL(f); });
 }
-$('addPhoto').onchange = async (e) => {
-  for (const f of e.target.files) {
-    const url = await readFile(f);
-    fabric.Image.fromURL(url, (img) => {
-      const k = Math.min((420 * unit()) / img.height, (W * 0.8) / img.width);
-      img.set({ originX: 'center', originY: 'center', scaleX: k, scaleY: k, ...nextPos(), data: { kind: 'photo' } });
-      canvas.add(img); canvas.setActiveObject(img); canvas.requestRenderAll();
-    });
-  }
-  e.target.value = '';
-};
+function addImageUrl(url) {
+  fabric.Image.fromURL(url, (img) => {
+    if (!img || !img.width) return;
+    const k = Math.min((420 * unit()) / img.height, (W * 0.8) / img.width, (H * 0.8) / img.height);
+    img.set({ originX: 'center', originY: 'center', scaleX: k, scaleY: k, ...nextPos(), data: { kind: 'photo' } });
+    canvas.add(img); canvas.setActiveObject(img); canvas.requestRenderAll();
+  });
+}
+async function addImageFiles(files) {
+  for (const f of files) if (f && f.type.startsWith('image/')) addImageUrl(await readFile(f));
+}
+$('addPhoto').onchange = async (e) => { await addImageFiles([...e.target.files]); e.target.value = ''; };
+document.addEventListener('paste', (e) => {
+  const tag = (e.target.tagName || '').toLowerCase();
+  if (tag === 'input' || tag === 'textarea') return;
+  const o = canvas.getActiveObject(); if (o && o.isEditing) return;
+  const files = [...(e.clipboardData ? e.clipboardData.items : [])].filter((i) => i.type.startsWith('image/')).map((i) => i.getAsFile());
+  if (files.length) { e.preventDefault(); addImageFiles(files); }
+});
+const stageEl = $('stage');
+stageEl.addEventListener('dragover', (e) => { if ([...e.dataTransfer.types].includes('Files')) { e.preventDefault(); $('wrap').classList.add('dropping'); } });
+stageEl.addEventListener('dragleave', (e) => { if (e.target === stageEl) $('wrap').classList.remove('dropping'); });
+stageEl.addEventListener('drop', (e) => { e.preventDefault(); $('wrap').classList.remove('dropping'); addImageFiles([...e.dataTransfer.files]); });
 function makeOval(img) {
   const idx = canvas.getObjects().indexOf(img);
   const c = img.getCenterPoint();
@@ -282,6 +350,7 @@ function refreshProps() {
   const recolor = isText || (o.data && o.data.kind === 'svg' && o.data.color);
   $('rowColor').hidden = !recolor; $('rowFont').hidden = !isText; $('rowBold').hidden = !isText;
   $('bOval').hidden = o.type !== 'image' || (o.data && o.data.kind === 'base');
+  $('bAsBase').hidden = o.type !== 'image' || (o.data && o.data.kind === 'base');
   if (recolor) $('pColor').value = toHex(isText ? o.fill : o.data.color);
   if (isText) { $('pFont').value = o.fontFamily; $('pBold').checked = o.fontWeight === 'bold' || o.fontWeight === 700; }
   $('pOpacity').value = Math.round((o.opacity ?? 1) * 100);
@@ -343,9 +412,10 @@ document.querySelectorAll('[data-act]').forEach((b) => b.onclick = () => {
   if (act === 'dup') return duplicate();
   if (act === 'del') return removeActive();
   if (act === 'oval') return makeOval(o);
+  if (act === 'asbase') { const src = o.getSrc(); muted = true; canvas.remove(o); muted = false; canvas.discardActiveObject(); return setBase(src); }
   if (act === 'flip') o.set('flipX', !o.flipX);
   if (act === 'front') canvas.bringForward(o);
-  if (act === 'back' && canvas.getObjects().indexOf(o) > (base ? 1 : 0)) canvas.sendBackwards(o);
+  if (act === 'back' && canvas.getObjects().indexOf(o) > (base ? 1 : 0) + (fundoObj() ? 1 : 0)) canvas.sendBackwards(o);
   canvas.requestRenderAll(); saveHistory();
 });
 
@@ -410,7 +480,7 @@ function projectData() {
   const S = curS();
   return {
     versao: 2, nome: $('projName').value.trim(),
-    produto: state.pk, produtoNome: curP().name, tamanho: state.sid, tamanhoNome: `${fmtCm(S.w)} × ${fmtCm(S.h)} cm`,
+    produto: state.pk, produtoNome: curP().name, tamanho: state.sid, tamanhoNome: sizeName(),
     custom: state.custom, cor: state.color, manual: manualData, canvas: JSON.parse(snapshot()),
   };
 }
@@ -445,8 +515,9 @@ async function saveFileToProject(nome, blob) {
 }
 $('saveBtn').onclick = () => saveProject(true);
 
+$('clienteName').addEventListener('input', (e) => { manualData = { ...manualData, cliente: e.target.value.trim() }; markDirty(); });
 function newProject() {
-  projectId = null; $('projName').value = ''; manualData = {};
+  projectId = null; $('projName').value = ''; manualData = {}; $('clienteName').value = ''; fundoId = null; markFundos();
   loadingProject = true;
   muted = true; canvas.clear(); base = null; muted = false;
   applyProduct(false);
@@ -460,10 +531,11 @@ async function openProject(id) {
   projectId = id; $('projName').value = p.nome || id;
   state = { pk: PRODUCTS[p.produto] ? p.produto : 'caneca', sid: p.tamanho, color: p.cor || null, custom: p.custom || null };
   manualData = p.manual || {};
+  $('clienteName').value = manualData.cliente || '';
   fillProductUI(); applyProduct(false);
   await new Promise((res) => {
     muted = true;
-    canvas.loadFromJSON(p.canvas, () => { findBase(); muted = false; canvas.requestRenderAll(); res(); });
+    canvas.loadFromJSON(p.canvas, () => { findBase(); const f = fundoObj(); fundoId = f ? f.data.id : null; markFundos(); muted = false; canvas.requestRenderAll(); res(); });
   });
   resetHistory(); queueMug(true); refreshProps();
   loadingProject = false; dirty = false; clearTimeout(autosaveT);
@@ -481,6 +553,12 @@ async function openProjects() {
   let list = [];
   try { list = await Store.list(); } catch (e) { console.error(e); grid.innerHTML = '<p class="pempty">Não consegui abrir os projetos salvos.</p>'; return; }
   grid.innerHTML = '';
+  const key = (p) => (p.cliente || p.nome || '').trim().toLowerCase();
+  const first = {};
+  list.forEach((p) => { const k = key(p), c = p.criado || p.atualizado || 0; if (!(k in first) || c < first[k]) first[k] = c; });
+  const order = Object.keys(first).sort((a, b) => first[a] - first[b]);
+  const num = Object.fromEntries(order.map((k, i) => [k, i + 1]));
+  $('pCount').textContent = list.length ? `${order.length} ${order.length === 1 ? 'cliente' : 'clientes'} · ${list.length} ${list.length === 1 ? 'projeto' : 'projetos'}` : '';
   const nc = document.createElement('div'); nc.className = 'card newcard'; nc.textContent = '+ Novo projeto';
   nc.onclick = () => { newProject(); $('projModal').hidden = true; };
   grid.appendChild(nc);
@@ -489,14 +567,15 @@ async function openProjects() {
     const data = p.atualizado ? new Date(p.atualizado).toLocaleString('pt-BR', { day: '2-digit', month: '2-digit', hour: '2-digit', minute: '2-digit' }) : '';
     card.innerHTML = `
       <div class="thumb">${p.capa ? `<img src="${esc(p.capa)}" alt="">` : '<span>sem capa</span>'}</div>
-      <div class="info"><b>${esc(p.nome)}</b><small>${esc(p.produto)} · ${esc(p.tamanho)}</small><small>${esc(data)}</small></div>
+      <div class="info"><span class="cli">Cliente #${num[key(p)]}${p.cliente ? ' · ' + esc(p.cliente) : ''}</span><b>${esc(p.nome)}</b><small>${esc(p.produto)} · ${esc(p.tamanho)}</small><small>${esc(data)}</small></div>
       <div class="acts">
         ${p.estampaUrl ? `<a href="${esc(p.estampaUrl)}" download="estampa-${esc(p.id)}.png">Estampa</a>` : ''}
         ${p.manualUrl ? `<a href="${esc(p.manualUrl)}" download="manual-${esc(p.id)}.pdf">Manual</a>` : ''}
-        <span class="sp"></span><button class="danger" data-del>Apagar</button>
+        <button data-exp>Exportar</button><span class="sp"></span><button class="danger" data-del>Apagar</button>
       </div>`;
     card.onclick = async (e) => {
       if (e.target.closest('a')) return;
+      if (e.target.closest('[data-exp]')) { e.stopPropagation(); exportProject(p); return; }
       const del = e.target.closest('[data-del]');
       if (del) {
         e.stopPropagation();
@@ -513,6 +592,38 @@ async function openProjects() {
   });
   if (!list.length) grid.insertAdjacentHTML('beforeend', '<p class="pempty">Nenhum projeto salvo ainda. Dá um nome lá em cima e aperta Salvar.</p>');
 }
+async function toDataUrl(src) {
+  const b = await (await fetch(src)).blob();
+  return new Promise((res) => { const r = new FileReader(); r.onload = () => res(r.result); r.readAsDataURL(b); });
+}
+async function embedImages(node) {
+  if (!node || typeof node !== 'object') return;
+  if (Array.isArray(node)) { for (const n of node) await embedImages(n); return; }
+  if (node.type === 'image' && node.src && !String(node.src).startsWith('data:')) {
+    try { node.src = await toDataUrl(node.src); } catch (e) { console.warn('imagem não embutida', node.src); }
+  }
+  for (const k of ['objects', 'clipPath', 'backgroundImage', 'overlayImage']) if (node[k]) await embedImages(node[k]);
+}
+async function exportProject(p) {
+  const data = await Store.load(p.id);
+  await embedImages(data.canvas);
+  let capa = null;
+  try { capa = p.capa ? (String(p.capa).startsWith('data:') ? p.capa : await toDataUrl(p.capa)) : null; } catch (e) {}
+  const out = { formato: 'editor-de-arte-e-3d', versao: 1, projeto: data, capa };
+  download(new Blob([JSON.stringify(out)], { type: 'application/json' }), `projeto-${p.id}.json`);
+}
+async function importProjectFile(file) {
+  const j = JSON.parse(await file.text());
+  if (j.formato !== 'editor-de-arte-e-3d' || !j.projeto || !j.projeto.canvas) throw new Error('arquivo não é um projeto do editor');
+  const { id } = await Store.novo(j.projeto.nome || 'projeto');
+  await Store.salvar(id, { ...j.projeto, capa: j.capa || undefined });
+  return id;
+}
+$('importProj').onchange = async (e) => {
+  const f = e.target.files[0]; e.target.value = '';
+  if (!f) return;
+  try { await importProjectFile(f); openProjects(); } catch (err) { console.error(err); $('pGrid').insertAdjacentHTML('afterbegin', `<p class="pempty">${esc(err.message)}</p>`); }
+};
 $('openProjects').onclick = openProjects;
 $('pClose').onclick = () => { $('projModal').hidden = true; };
 $('projModal').addEventListener('click', (e) => { if (e.target.id === 'projModal') $('projModal').hidden = true; });

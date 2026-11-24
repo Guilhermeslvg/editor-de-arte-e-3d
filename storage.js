@@ -65,6 +65,7 @@ const Store = (() => {
     const recs = await allRecs();
     return recs.map((r) => ({
       id: r.id, nome: r.data.nome || r.id, produto: r.data.produtoNome || '', tamanho: r.data.tamanhoNome || '',
+      cliente: (r.data.manual && r.data.manual.cliente) || '', criado: r.criado || r.atualizado || 0,
       atualizado: r.atualizado || 0, capa: r.capa || null, estampaUrl: objUrl(r.estampa), manualUrl: objUrl(r.manual),
     })).sort((a, b) => b.atualizado - a.atualizado);
   }
@@ -73,14 +74,14 @@ const Store = (() => {
     const base = slugify(nome);
     let id = base, i = 2;
     while (await getRec(id)) id = `${base}-${i++}`;
-    await putRec({ id, data: { nome }, atualizado: Date.now() });
+    await putRec({ id, data: { nome }, atualizado: Date.now(), criado: Date.now() });
     return { id };
   }
   async function salvar(id, dados) {
     if ((await detect()) === 'server') return post(`/api/projetos/${id}/salvar`, dados);
     const { capa, estampa, ...data } = dados;
     const rec = (await getRec(id)) || { id };
-    rec.data = data; rec.atualizado = Date.now();
+    rec.data = data; rec.atualizado = Date.now(); rec.criado = rec.criado || data.criado || Date.now();
     if (capa) rec.capa = capa;
     if (estampa) rec.estampa = await dataUrlToBlob(estampa);
     await putRec(rec);

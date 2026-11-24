@@ -50,7 +50,7 @@ const Mock = (() => {
       if (o.material) [].concat(o.material).forEach((m) => m.dispose());
     });
   }
-  function std(color, rough = 0.5, extra = {}) { return new THREE.MeshStandardMaterial({ color, roughness: rough, metalness: 0, ...extra }); }
+  function std(color, rough = 0.5, extra = {}) { return new THREE.MeshStandardMaterial({ color: new THREE.Color(color).convertSRGBToLinear(), roughness: rough, metalness: 0, ...extra }); }
   function printMat(rough = 0.3) {
     return new THREE.MeshStandardMaterial({ map: texture, roughness: rough, transparent, alphaTest: transparent ? 0.02 : 0, polygonOffset: true, polygonOffsetFactor: -2 });
   }
@@ -68,7 +68,7 @@ const Mock = (() => {
     for (let i = 0; i < p.count; i++) uv.setXY(i, (p.getX(i) - (cx - w / 2)) / w, (p.getY(i) - (cy - h / 2)) / h);
     return g;
   }
-  function shade(hex, k) { const c = new THREE.Color(hex); c.multiplyScalar(k); return c; }
+  function shade(hex, k) { const c = new THREE.Color(hex); c.multiplyScalar(k); return '#' + c.getHexString(); }
 
   /* ---------- modelos ---------- */
   const BUILD = {
@@ -156,6 +156,31 @@ const Mock = (() => {
       const ring = new THREE.Mesh(new THREE.TorusGeometry(0.9, 0.08, 16, 64), metal);
       ring.rotation.y = Math.PI / 2; ring.position.set(0, holeY + 0.62, 0); g.add(ring);
       return { group: g, spin: 'sway', amp: 0.6, elev: 0.1, cover: 1, views: [['Ângulo esquerdo', 0.6], ['Frente', 0], ['Ângulo direito', -0.6]] };
+    },
+
+    phone(S) {
+      const g = new THREE.Group();
+      const bw = 7.4, bh = 15.4, sw = 6.8, sh = 14.6;
+      const body = new THREE.Mesh(
+        new THREE.ExtrudeGeometry(roundedRect(bw, bh, 1.1), { depth: 0.6, bevelEnabled: true, bevelThickness: 0.12, bevelSize: 0.12, bevelSegments: 4, curveSegments: 24 }),
+        std('#16161a', 0.35));
+      body.position.z = -0.3; g.add(body);
+      const screen = new THREE.Mesh(shapePlane(roundedRect(sw, sh, 0.85), sw, sh), std('#ffffff', 0.6));
+      screen.position.z = 0.43; g.add(screen);
+      let pw = sw, ph = (sw * S.h) / S.w;
+      if (ph > sh) { ph = sh; pw = (sh * S.w) / S.h; }
+      const story = S.h / S.w > 1.6;
+      const art = new THREE.Mesh(story ? shapePlane(roundedRect(pw, ph, 0.85), pw, ph) : new THREE.PlaneGeometry(pw, ph), printMat(0.5));
+      art.position.set(0, story ? 0 : 0.6, 0.44); g.add(art);
+      if (!story) {
+        const bar = (y, w, h, c) => { const m = new THREE.Mesh(shapePlane(roundedRect(w, h, h / 2), w, h), std(c, 0.8)); m.position.set(-sw / 2 + 0.4 + w / 2, y, 0.441); g.add(m); };
+        bar(0.6 + ph / 2 + 0.55, 2.2, 0.32, '#d9d6d0');
+        const av = new THREE.Mesh(new THREE.CircleGeometry(0.32, 32), std('#cfcac2', 0.8)); av.position.set(-sw / 2 + 0.75, 0.6 + ph / 2 + 0.55, 0.442); g.add(av);
+        bar(0.6 - ph / 2 - 0.5, 3.4, 0.26, '#e3e0da'); bar(0.6 - ph / 2 - 0.95, 2.4, 0.26, '#e3e0da');
+      }
+      const notch = new THREE.Mesh(shapePlane(roundedRect(2.0, 0.5, 0.25), 2.0, 0.5), std('#16161a', 0.4));
+      notch.position.set(0, sh / 2 - 0.5, 0.445); g.add(notch);
+      return { group: g, spin: 'sway', amp: 0.5, elev: 0.08, cover: 1, views: [['Ângulo esquerdo', 0.45], ['Frente', 0], ['Ângulo direito', -0.45]] };
     },
 
     cap(S, color) {

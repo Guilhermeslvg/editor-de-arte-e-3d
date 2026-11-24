@@ -120,6 +120,8 @@ class Handler(SimpleHTTPRequestHandler):
             out.append({
                 "id": pid,
                 "nome": p.get("nome") or pid,
+                "cliente": (p.get("manual") or {}).get("cliente", ""),
+                "criado": p.get("criado") or int(os.path.getctime(d) * 1000),
                 "produto": p.get("produtoNome", ""),
                 "tamanho": p.get("tamanhoNome", ""),
                 "atualizado": p.get("atualizado", 0),
@@ -144,6 +146,15 @@ class Handler(SimpleHTTPRequestHandler):
         os.makedirs(d, exist_ok=True)
         capa = data_url_bytes(dados.pop("capa", None))
         estampa = data_url_bytes(dados.pop("estampa", None))
+        antigo = os.path.join(d, "projeto.json")
+        if os.path.isfile(antigo):
+            try:
+                with open(antigo, encoding="utf-8") as fh:
+                    dados.setdefault("criado", json.load(fh).get("criado"))
+            except Exception:  # noqa: BLE001
+                pass
+        if not dados.get("criado"):
+            dados["criado"] = int(time.time() * 1000)
         dados["atualizado"] = int(time.time() * 1000)
         tmp = os.path.join(d, "projeto.json.tmp")
         with open(tmp, "w", encoding="utf-8") as f:

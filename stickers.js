@@ -59,3 +59,92 @@ const STICKERS = {
      <path d="M50 52 C 64 30 84 34 90 46 C 76 47 66 55 50 52 Z" fill="#2f9e55"/>
      <circle cx="44" cy="56" r="7" fill="#d62b2b"/><circle cx="56" cy="56" r="7" fill="#d62b2b"/><circle cx="50" cy="66" r="7" fill="#d62b2b"/>`) },
 };
+
+// ---------- mais enfeites (temas: Amor, Festa, Formas, Fofos) ----------
+const STAR5 = 'M50 8 L61 37 L92 38 L68 58 L76 89 L50 71 L24 89 L32 58 L8 38 L39 37 Z';
+Object.assign(STICKERS, {
+  coracaoDuplo: { label: 'Dois corações', cat: 'Amor', svg: () => SVG(
+    `<path d="M38 80 C 16 64 6 50 10 36 C 14 23 32 21 38 35 C 44 21 62 23 66 36 C 70 50 60 64 38 80 Z" fill="#e23b3b"/>
+     <path d="M66 70 C 50 58 43 48 46 38 C 49 29 62 27 66 37 C 70 27 83 29 86 38 C 89 48 82 58 66 70 Z" fill="#f48aa0" stroke="#ffffff" stroke-width="3"/>`) },
+  cartinha: { label: 'Cartinha', cat: 'Amor', svg: () => SVG(
+    `<rect x="12" y="26" width="76" height="52" rx="6" fill="#fff4f0" stroke="#d63333" stroke-width="4"/>
+     <path d="M14 30 L50 58 L86 30" fill="none" stroke="#d63333" stroke-width="4" stroke-linejoin="round"/>
+     <path d="M50 70 C 40 63 36 57 38 52 C 40 47 47 47 50 52 C 53 47 60 47 62 52 C 64 57 60 63 50 70 Z" fill="#e23b3b"/>`) },
+  balaoCoracao: { label: 'Balão de coração', cat: 'Amor', color: '#e23b3b', svg: (c) => SVG(
+    `<path d="M50 66 C 26 50 16 38 20 26 C 24 14 42 12 50 26 C 58 12 76 14 80 26 C 84 38 74 50 50 66 Z" fill="${c}"/>
+     <path d="M50 66 C 46 76 56 82 50 94" fill="none" stroke="#7a746b" stroke-width="2"/>
+     <path d="M32 26 C 34 22 38 20 42 21" fill="none" stroke="#ffffff" stroke-width="3" stroke-linecap="round" opacity=".7"/>`) },
+  balao: { label: 'Balão', cat: 'Festa', color: '#3b82d6', svg: (c) => SVG(
+    `<ellipse cx="50" cy="40" rx="26" ry="32" fill="${c}"/>
+     <path d="M46 71 L54 71 L50 76 Z" fill="${c}"/>
+     <path d="M50 76 C 44 84 56 88 50 97" fill="none" stroke="#7a746b" stroke-width="2"/>
+     <path d="M36 28 C 38 22 43 18 48 18" fill="none" stroke="#ffffff" stroke-width="4" stroke-linecap="round" opacity=".6"/>`) },
+  chapeuFesta: { label: 'Chapéu de festa', cat: 'Festa', svg: () => SVG(
+    `<path d="M50 8 L78 88 L22 88 Z" fill="#8b5cf6"/>
+     <path d="M41 34 L59 34 M35 52 L65 52 M29 70 L71 70" stroke="#facc15" stroke-width="6" stroke-linecap="round"/>
+     <circle cx="50" cy="9" r="7" fill="#f472b6"/><rect x="18" y="84" width="64" height="8" rx="4" fill="#facc15"/>`) },
+  confete: { label: 'Confete', cat: 'Festa', svg: () => SVG(
+    `<rect x="14" y="18" width="10" height="5" rx="2" fill="#ef4444" transform="rotate(25 19 20)"/>
+     <rect x="70" y="14" width="10" height="5" rx="2" fill="#3b82f6" transform="rotate(-30 75 16)"/>
+     <circle cx="44" cy="30" r="4" fill="#facc15"/><circle cx="82" cy="52" r="4" fill="#22c55e"/>
+     <rect x="24" y="60" width="10" height="5" rx="2" fill="#a855f7" transform="rotate(-20 29 62)"/>
+     <rect x="58" y="74" width="10" height="5" rx="2" fill="#f97316" transform="rotate(40 63 76)"/>
+     <circle cx="18" cy="84" r="4" fill="#3b82f6"/><circle cx="60" cy="46" r="3" fill="#ef4444"/>
+     <path d="M36 44 q 6 -6 12 0 t 12 0" fill="none" stroke="#22c55e" stroke-width="3" stroke-linecap="round"/>`) },
+  bandeirinhas: { label: 'Bandeirinhas', cat: 'Festa', svg: () => SVG(
+    `<path d="M4 22 C 30 36 70 36 96 22" fill="none" stroke="#7a746b" stroke-width="2"/>
+     <path d="M10 25 L24 30 L15 52 Z" fill="#ef4444"/><path d="M30 31 L46 33 L37 56 Z" fill="#facc15"/>
+     <path d="M54 33 L70 31 L63 56 Z" fill="#3b82f6"/><path d="M76 30 L90 25 L85 52 Z" fill="#22c55e"/>`) },
+  bolo: { label: 'Bolo', cat: 'Festa', svg: () => SVG(
+    `<rect x="18" y="52" width="64" height="36" rx="6" fill="#f9a8d4"/>
+     <path d="M18 60 C 26 68 34 52 42 60 C 50 68 58 52 66 60 C 72 66 78 58 82 60 L82 52 L18 52 Z" fill="#ffffff"/>
+     <rect x="47" y="30" width="6" height="22" rx="2" fill="#60a5fa"/><path d="M50 18 C 56 24 54 30 50 30 C 46 30 44 24 50 18 Z" fill="#f59e0b"/>
+     <rect x="12" y="86" width="76" height="6" rx="3" fill="#d6d3d1"/>`) },
+  estrelaCadente: { label: 'Estrela cadente', cat: 'Festa', svg: () => SVG(
+    `<path d="M8 80 L52 46" stroke="#facc15" stroke-width="6" stroke-linecap="round" opacity=".5"/>
+     <path d="M18 90 L54 58" stroke="#f472b6" stroke-width="4" stroke-linecap="round" opacity=".5"/>
+     <path d="M66 14 L72 30 L89 31 L76 42 L80 59 L66 50 L52 59 L56 42 L43 31 L60 30 Z" fill="#facc15" stroke="#e0a800" stroke-width="2" stroke-linejoin="round"/>`) },
+  coroa: { label: 'Coroa', cat: 'Festa', svg: () => SVG(
+    `<path d="M14 72 L10 30 L32 48 L50 20 L68 48 L90 30 L86 72 Z" fill="#facc15" stroke="#d9a800" stroke-width="3" stroke-linejoin="round"/>
+     <rect x="14" y="72" width="72" height="12" rx="3" fill="#f59e0b"/>
+     <circle cx="50" cy="56" r="5" fill="#ef4444"/><circle cx="30" cy="62" r="4" fill="#3b82f6"/><circle cx="70" cy="62" r="4" fill="#22c55e"/>`) },
+  sol: { label: 'Sol', cat: 'Fofos', svg: () => {
+    let r = ''; for (let i = 0; i < 12; i++) { const a = (i * Math.PI) / 6; r += `<line x1="${(50 + 30 * Math.cos(a)).toFixed(1)}" y1="${(50 + 30 * Math.sin(a)).toFixed(1)}" x2="${(50 + 44 * Math.cos(a)).toFixed(1)}" y2="${(50 + 44 * Math.sin(a)).toFixed(1)}" stroke="#f59e0b" stroke-width="5" stroke-linecap="round"/>`; }
+    return SVG(`${r}<circle cx="50" cy="50" r="22" fill="#facc15"/><circle cx="43" cy="47" r="2.5" fill="#7c2d12"/><circle cx="57" cy="47" r="2.5" fill="#7c2d12"/><path d="M42 56 C 46 61 54 61 58 56" fill="none" stroke="#7c2d12" stroke-width="2.5" stroke-linecap="round"/>`); } },
+  nuvem: { label: 'Nuvem', cat: 'Fofos', svg: () => SVG(
+    `<path d="M24 72 C 10 72 8 54 20 50 C 18 36 34 30 42 38 C 46 24 68 24 70 40 C 84 38 92 52 84 62 C 90 70 82 74 76 72 Z" fill="#ffffff" stroke="#93c5fd" stroke-width="4" stroke-linejoin="round"/>`) },
+  flor: { label: 'Flor', cat: 'Fofos', color: '#f472b6', svg: (c) => {
+    let p = ''; for (let i = 0; i < 6; i++) { const a = (i * Math.PI) / 3; p += `<circle cx="${(50 + 20 * Math.cos(a)).toFixed(1)}" cy="${(46 + 20 * Math.sin(a)).toFixed(1)}" r="14" fill="${c}"/>`; }
+    return SVG(`<path d="M50 60 C 50 75 48 85 50 96" stroke="#22c55e" stroke-width="5" fill="none"/>${p}<circle cx="50" cy="46" r="11" fill="#facc15"/>`); } },
+  folha: { label: 'Folha', cat: 'Fofos', color: '#22c55e', svg: (c) => SVG(
+    `<path d="M20 82 C 18 40 46 14 86 14 C 86 54 62 84 20 82 Z" fill="${c}"/>
+     <path d="M20 82 C 40 62 56 44 76 26" fill="none" stroke="#ffffff" stroke-width="3" stroke-linecap="round" opacity=".7"/>`) },
+  arcoIris: { label: 'Arco-íris', cat: 'Fofos', svg: () => SVG(
+    `<path d="M10 74 A 40 40 0 0 1 90 74" fill="none" stroke="#ef4444" stroke-width="8"/>
+     <path d="M18 74 A 32 32 0 0 1 82 74" fill="none" stroke="#f59e0b" stroke-width="8"/>
+     <path d="M26 74 A 24 24 0 0 1 74 74" fill="none" stroke="#22c55e" stroke-width="8"/>
+     <path d="M34 74 A 16 16 0 0 1 66 74" fill="none" stroke="#3b82f6" stroke-width="8"/>`) },
+  raio: { label: 'Raio', cat: 'Formas', color: '#facc15', svg: (c) => SVG(`<path d="M58 6 L22 56 L46 56 L38 94 L78 40 L54 40 Z" fill="${c}" stroke="#1f1d1a" stroke-width="3" stroke-linejoin="round"/>`) },
+  falas: { label: 'Balão de fala', cat: 'Formas', color: '#ffffff', svg: (c) => SVG(`<path d="M14 20 H86 A 8 8 0 0 1 94 28 V64 A 8 8 0 0 1 86 72 H40 L22 88 L26 72 H14 A 8 8 0 0 1 6 64 V28 A 8 8 0 0 1 14 20 Z" fill="${c}" stroke="#1f1d1a" stroke-width="4" stroke-linejoin="round"/>`) },
+  faixa: { label: 'Faixa', cat: 'Formas', color: '#d63333', svg: (c) => SVG(
+    `<path d="M4 40 L20 40 L20 70 L4 70 L12 55 Z" fill="${c}" opacity=".75"/><path d="M96 40 L80 40 L80 70 L96 70 L88 55 Z" fill="${c}" opacity=".75"/>
+     <rect x="14" y="30" width="72" height="32" rx="2" fill="${c}"/>`) },
+  circulo: { label: 'Círculo', cat: 'Formas', color: '#f4a3b5', svg: (c) => SVG(`<circle cx="50" cy="50" r="44" fill="${c}"/>`) },
+  quadrado: { label: 'Quadrado', cat: 'Formas', color: '#93c5fd', svg: (c) => SVG(`<rect x="8" y="8" width="84" height="84" rx="14" fill="${c}"/>`) },
+  estrelaForma: { label: 'Estrela', cat: 'Formas', color: '#facc15', svg: (c) => SVG(`<path d="${STAR5}" fill="${c}"/>`) },
+  seta: { label: 'Seta', cat: 'Formas', color: '#1f1d1a', svg: (c) => SVG(`<path d="M10 70 C 30 30 60 26 80 36" fill="none" stroke="${c}" stroke-width="6" stroke-linecap="round"/><path d="M68 24 L84 37 L66 48" fill="none" stroke="${c}" stroke-width="6" stroke-linecap="round" stroke-linejoin="round"/>`) },
+});
+['gorro', 'arvore', 'boneco', 'presente', 'floco', 'bengala', 'azevinho'].forEach((k) => { STICKERS[k].cat = 'Natal'; });
+['coracao', 'coracaoCheio'].forEach((k) => { STICKERS[k].cat = 'Amor'; });
+['brilho', 'estrela', 'risquinhos', 'bolinha'].forEach((k) => { STICKERS[k].cat = 'Formas'; });
+const STICKER_CATS = ['Natal', 'Amor', 'Festa', 'Fofos', 'Formas'];
+
+const EMOJI_CATS = {
+  'Rostos': ['😀', '😂', '🥰', '😍', '😎', '🤩', '😇', '🥳', '😘', '🤗', '😜', '🙃', '😴', '🤔', '😭', '😡'],
+  'Amor': ['❤️', '🧡', '💛', '💚', '💙', '💜', '🖤', '🤍', '💕', '💖', '💘', '💝', '💌', '💋', '🌹', '💐'],
+  'Festa': ['🎉', '🎊', '🎈', '🎂', '🍰', '🎁', '🥂', '🍾', '🎆', '✨', '🎀', '👑', '🏆', '🥇', '🎵', '🪩'],
+  'Natal': ['🎄', '🎅', '🤶', '⛄', '❄️', '🦌', '🔔', '🍪', '🕯️', '🧦', '🌟', '⭐', '🎁', '☃️', '🍬', '🛷'],
+  'Natureza': ['🌸', '🌻', '🌷', '🌿', '🍀', '🌈', '☀️', '🌙', '⭐', '🌊', '🔥', '🦋', '🐶', '🐱', '🐰', '🦄'],
+  'Comida': ['🍕', '🍔', '🍟', '🍩', '🍫', '🍦', '🍓', '🍉', '🍇', '🥑', '☕', '🧋', '🍿', '🍭', '🥐', '🍣'],
+  'Objetos': ['📸', '💄', '💅', '👗', '👟', '💍', '🎮', '⚽', '🏀', '📚', '✏️', '💻', '📱', '🎧', '🚗', '✈️'],
+};

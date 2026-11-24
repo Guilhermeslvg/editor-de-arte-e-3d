@@ -101,6 +101,18 @@
   .card .acts button{font-size:12px;padding:5px 8px}
   .card .acts a{font-size:12px;color:var(--ink);text-decoration:none;border:1px solid var(--line);border-radius:8px;padding:5px 8px}
   .card .acts .sp{flex:1}
+  .chips{display:flex;flex-wrap:wrap;gap:4px;margin-bottom:8px}
+  .chips button{font-size:12px;padding:4px 8px;border-radius:999px}
+  .chips button.on{background:var(--ink);color:#fff;border-color:var(--ink)}
+  .fgrid{display:grid;grid-template-columns:repeat(6,1fr);gap:6px}
+  .fgrid button{aspect-ratio:1;padding:0;border-radius:8px;box-shadow:inset 0 0 0 1px rgba(0,0,0,.08)}
+  .fgrid button.on{outline:2px solid var(--accent);outline-offset:1px}
+  .field{font:inherit;font-size:13px;border:1px solid var(--line);border-radius:8px;padding:7px 10px;width:100%}
+  .field:focus{outline:2px solid rgba(200,49,47,.25);border-color:var(--accent)}
+  .pcount{font-size:12px;color:var(--muted);font-weight:400;margin-left:8px}
+  .mhead .sp{flex:1}
+  .card .cli{color:var(--accent);font-size:12px;font-weight:600}
+  .wrap.dropping{outline:3px dashed var(--accent);outline-offset:6px}
   .newcard{border-style:dashed;display:grid;place-items:center;min-height:240px;color:var(--muted);font-weight:500}
   .pempty{color:var(--muted);text-align:center;margin:40px 0}
   @media (max-width:1100px){main{grid-template-columns:210px 1fr 280px} #projName{width:150px}}
@@ -121,6 +133,8 @@
 </header>
 <main>
   <aside class="tools">
+    <h2>Cliente</h2>
+    <input id="clienteName" class="field" placeholder="Nome do cliente" autocomplete="off">
     <h2>Produto</h2>
     <div class="stack">
       <select id="pProduct" aria-label="Produto"></select>
@@ -131,7 +145,7 @@
           <span>×</span>
           <input type="number" id="customH" min="1" max="200" step="0.1" placeholder="Altura" aria-label="Altura em cm">
         </div>
-        <p class="tiny">em centímetros · aperta Enter pra aplicar</p>
+        <p class="tiny" id="customUnit">em centímetros · aperta Enter pra aplicar</p>
       </div>
       <div id="colorBox" hidden>
         <p class="tiny" id="colorLabel">Cor</p>
@@ -140,14 +154,22 @@
     </div>
     <h2>Adicionar</h2>
     <div class="stack">
-      <label class="btn">+ Foto / rosto<input type="file" id="addPhoto" accept="image/*" multiple></label>
+      <label class="btn">+ Foto / imagem<input type="file" id="addPhoto" accept="image/*" multiple></label>
       <button id="addText">+ Texto</button>
+      <p class="tiny">Dica: copia qualquer imagem e aperta ⌘V aqui, ou arrasta o arquivo pra cima da arte.</p>
     </div>
     <h2>Enfeites</h2>
+    <div class="chips" id="stickerCats"></div>
     <div class="grid" id="stickers"></div>
     <h2>Emojis</h2>
+    <div class="chips" id="emojiCats"></div>
     <div class="grid emoji" id="emojis"></div>
-    <h2>Fundo</h2>
+    <h2>Fundos</h2>
+    <div class="fgrid" id="fundos"></div>
+    <div class="stack" style="margin-top:8px">
+      <button id="noFundo">Tirar fundo pronto</button>
+    </div>
+    <h2>Arte de fundo</h2>
     <div class="stack">
       <label class="check"><input type="checkbox" id="lockBase" checked> Travar arte de fundo</label>
       <label class="check"><input type="checkbox" id="showGuides" checked> Mostrar margem</label>
@@ -161,7 +183,7 @@
       <canvas id="c"></canvas>
       <div class="guides" id="guides"><div class="safe" id="safeBox"></div><div class="mid" id="midLine"></div><span class="tag l">alça</span><span class="tag r">alça</span></div>
     </div>
-    <p class="hint">Duplo clique no texto pra escrever · Delete apaga · ⌘Z desfaz · ⌘S salva · setas movem (Shift = mais rápido) · ⌘D duplica</p>
+    <p class="hint">⌘V cola imagem · duplo clique no texto pra escrever · Delete apaga · ⌘Z desfaz · ⌘S salva · ⌘D duplica</p>
   </section>
 
   <aside class="side">
@@ -186,6 +208,7 @@
         <button data-act="front">Pra frente</button>
         <button data-act="back">Pra trás</button>
         <button data-act="oval" class="full" id="bOval">Virar adesivo oval (borda branca)</button>
+        <button data-act="asbase" class="full" id="bAsBase">Usar essa imagem como fundo</button>
         <button data-act="del" class="danger full">Apagar</button>
       </div>
     </div>
@@ -215,7 +238,7 @@
 
 <div class="modal" id="projModal" hidden>
   <div class="dialog" role="dialog" aria-label="Meus projetos">
-    <div class="mhead"><h3>Meus projetos</h3><button id="pClose">Fechar</button></div>
+    <div class="mhead"><h3>Meus projetos <small id="pCount" class="pcount"></small></h3><span class="sp"></span><label class="btn">Importar projeto<input type="file" id="importProj" accept=".json,application/json"></label><button id="pClose">Fechar</button></div>
     <div class="projs"><div class="pgrid" id="pGrid"></div></div>
   </div>
 </div>
@@ -228,6 +251,7 @@
 <script src="storage.js"></script>
 <script src="mockups.js"></script>
 <script src="stickers.js"></script>
+<script src="fundos.js"></script>
 <script src="app.js"></script>
 <script src="manual.js"></script>
 </body>

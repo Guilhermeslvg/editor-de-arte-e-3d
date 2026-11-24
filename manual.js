@@ -23,6 +23,7 @@
     const modelos = { ...((manualData && manualData.modelos) || {}), [state.pk]: d.modelo };
     manualData = { ...d, produto: state.pk, modelos };
     try { localStorage.setItem('editor-manual', JSON.stringify({ cliente: d.cliente, reconhecimento: d.reconhecimento })); } catch (e) {}
+    if ($('clienteName')) $('clienteName').value = d.cliente || '';
     return d;
   }
   function fillForm(d) { ['cliente', 'reconhecimento', 'modelo', 'qtd', 'obs'].forEach((k) => { form.elements[k].value = d[k] || ''; }); }
@@ -222,7 +223,14 @@
   $('mClose').onclick = closeModal;
   $('manualModal').addEventListener('click', (e) => { if (e.target.id === 'manualModal') closeModal(); });
   document.addEventListener('keydown', (e) => { if (e.key === 'Escape' && !$('manualModal').hidden) closeModal(); }, true);
-  $('export').onclick = openModal;
+  function quickPng() {
+    canvas.discardActiveObject(); canvas.renderAll();
+    exportCanvas().toBlob((b) => {
+      download(b, `${slug()}-${sizeTag()}.png`);
+      if (projectId) saveFileToProject('estampa.png', b).catch(() => {});
+    }, 'image/png');
+  }
+  $('export').onclick = () => (curP().digital ? quickPng() : openModal());
 
   function slug() {
     const d = readForm();

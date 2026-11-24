@@ -103,4 +103,15 @@ const PRODUCTS = {
     ],
     notes: () => [['Posição', 'Frente do boné, centralizada logo acima da aba']],
   },
+  instagram: {
+    name: 'Post de Instagram', title: 'Arte digital', na: 'no celular', mock: 'phone', safe: 0, digital: true,
+    modelo: 'Arte digital para redes sociais',
+    sizes: [
+      { id: 'quadrado', label: 'Feed quadrado · 1080 × 1080', w: 1080, h: 1080 },
+      { id: 'retrato', label: 'Feed retrato · 1080 × 1350', w: 1080, h: 1350 },
+      { id: 'story', label: 'Story / Reels · 1080 × 1920', w: 1080, h: 1920 },
+      { id: 'paisagem', label: 'Paisagem · 1080 × 566', w: 1080, h: 566 },
+    ],
+    notes: () => [],
+  },
 };
