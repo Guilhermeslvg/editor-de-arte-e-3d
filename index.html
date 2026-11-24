@@ -142,6 +142,7 @@
   body.garment aside.tools.open{display:block}
   body.garment .center{display:flex;flex-direction:column;min-width:0;min-height:0}
   body.garment .viewport{display:block;position:relative;flex:1.35 1 0;min-height:0;overflow:hidden}
+  .viewport.bg-cinza{background:radial-gradient(ellipse 55% 60% at 50% 45%,#e9e8e4 0%,#c9c7c1 45%,#9d9b95 100%)}
   .viewport.bg-claro{background:radial-gradient(ellipse at 50% 38%,#ffffff 0%,#ece8e0 60%,#ddd7cb 100%)}
   .viewport.bg-folhas{background:radial-gradient(ellipse at 45% 35%,#f6efe2 0%,#e9dfcd 55%,#d6c8b0 100%)}
   .viewport.bg-salvia{background:radial-gradient(ellipse at 50% 35%,#a9b8a2 0%,#8a9c84 60%,#728468 100%)}
@@ -274,7 +275,7 @@
   </aside>
 
   <div class="center" id="center">
-  <div class="viewport bg-folhas" id="viewport">
+  <div class="viewport bg-cinza" id="viewport">
     <svg class="folhas" viewBox="0 0 100 60" preserveAspectRatio="xMidYMid slice"><g fill="#3d3a2c"><ellipse cx="12" cy="10" rx="9" ry="3" transform="rotate(-35 12 10)"/><ellipse cx="22" cy="6" rx="7" ry="2.4" transform="rotate(20 22 6)"/><ellipse cx="8" cy="22" rx="8" ry="2.6" transform="rotate(40 8 22)"/><ellipse cx="85" cy="12" rx="10" ry="3" transform="rotate(30 85 12)"/><ellipse cx="92" cy="25" rx="7" ry="2.4" transform="rotate(-25 92 25)"/><ellipse cx="78" cy="4" rx="6" ry="2" transform="rotate(-10 78 4)"/><path d="M0 0L30 0 4 30z" opacity=".35"/><path d="M100 0L70 0 98 34z" opacity=".35"/></g></svg>
     <div class="vp-card" id="vpCard" hidden>
       <h4>Item selecionado</h4>
@@ -347,8 +348,13 @@
       <div class="gsec"><h2>Aparência</h2>
         <div class="slider"><span>Dobras e sombras</span><input type="range" id="lkAo" min="0" max="150" value="100"></div>
         <div class="slider"><span>Textura da malha</span><input type="range" id="lkNorm" min="0" max="150" value="60"></div>
+        <div class="slider"><span>Tamanho da malha</span><input type="range" id="lkKnit" min="40" max="250" value="100"></div>
         <div class="slider"><span>Luz</span><input type="range" id="lkLuz" min="40" max="160" value="100"></div>
-        <div class="slider"><span>Fundo do estúdio</span><select id="lkBg"><option value="folhas">Parede com sombra de folhas</option><option value="claro">Estúdio claro</option><option value="salvia">Verde sálvia</option><option value="escuro">Escuro</option></select></div>
+        <div class="slider"><span>Luz principal</span><input type="range" id="lkKey" min="0" max="360" value="215"></div>
+        <div class="slider"><span>Brilho</span><input type="range" id="lkBri" min="60" max="140" value="100"></div>
+        <div class="slider"><span>Contraste</span><input type="range" id="lkCon" min="60" max="160" value="100"></div>
+        <div class="chips2" style="margin-top:4px"><button id="lkReset">Voltar ao padrão</button></div>
+        <div class="slider"><span>Fundo do estúdio</span><select id="lkBg"><option value="cinza">Estúdio cinza</option><option value="folhas">Parede com sombra de folhas</option><option value="claro">Estúdio claro</option><option value="salvia">Verde sálvia</option><option value="escuro">Escuro</option></select></div>
       </div>
       <div class="gsec" id="brushSec" hidden><h2>Pincel</h2>
         <div class="slider"><span>Cor</span><input type="color" id="brColor" value="#c8312f"></div>

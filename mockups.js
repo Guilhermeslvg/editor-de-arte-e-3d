@@ -3,7 +3,8 @@ const Mock = (() => {
   let renderer, scene, camera, el, group = null, texture = null, texCanvas, tctx;
   let mode = 'full', views = [], elev = 0.28, cover = 0, swayBase = 0, swayAmp = 0.5, swayT = 0, transparent = false;
   let dragging = false, lastX = 0, lastY = 0, vel = 0, pitch = 0, zoomK = 1, isGlb = false;
-  const look = { ao: 1, normal: 0.6, luz: 1, rough: 0.92 };
+  const look = { ao: 1, normal: 0.6, luz: 1, rough: 0.92, knit: 1, key: 215, bri: 1, con: 1 };
+  let ladoLight = null;
   let envTex = null, knitTex = null, aoCache = {};
   let shotRenderer = null;
 
@@ -15,9 +16,9 @@ const Mock = (() => {
     el.appendChild(renderer.domElement);
     scene = new THREE.Scene();
     camera = new THREE.PerspectiveCamera(28, 1, 0.1, 1000);
-    const hemi = new THREE.HemisphereLight(0xffffff, 0xbdb8b0, 0.85); hemi.userData.base = 0.85; hemi.userData.roupa = 0.35; scene.add(hemi);
+    const hemi = new THREE.HemisphereLight(0xffffff, 0xbdb8b0, 0.85); hemi.userData.base = 0.85; hemi.userData.roupa = 0.2; scene.add(hemi);
     const key = new THREE.DirectionalLight(0xffffff, 0.75); key.position.set(3, 4, 5); key.userData.base = 0.75; key.userData.roupa = 0.0; scene.add(key);
-    const lado = new THREE.DirectionalLight(0xfff4e8, 0); lado.position.set(-4, 3.5, 2.5); lado.userData.base = 0; lado.userData.roupa = 1.15; scene.add(lado);
+    const lado = ladoLight = new THREE.DirectionalLight(0xfff4e8, 0); lado.position.set(-4, 3.5, 2.5); lado.userData.base = 0; lado.userData.roupa = 0.95; scene.add(lado);
     const rim = new THREE.DirectionalLight(0xffffff, 0.3); rim.position.set(-4, 2, -3); rim.userData.base = 0.3; rim.userData.roupa = 0.35; scene.add(rim);
     el.addEventListener('pointerdown', (e) => { dragging = true; lastX = e.clientX; lastY = e.clientY; vel = 0; el.setPointerCapture(e.pointerId); });
     el.addEventListener('pointermove', (e) => {
@@ -131,10 +132,11 @@ const Mock = (() => {
   function roupaMat(P) {
     const m = new THREE.MeshStandardMaterial({
       map: texture, aoMap: aoMapa(P.model), aoMapIntensity: look.ao, normalMap: malha(), normalScale: new THREE.Vector2(look.normal, look.normal),
-      envMap: ambiente(), envMapIntensity: 0.85 * look.luz, roughness: look.rough, metalness: 0, side: THREE.DoubleSide,
+      envMap: ambiente(), envMapIntensity: 0.42 * look.luz, roughness: look.rough, metalness: 0, side: THREE.DoubleSide,
     });
     const sheet = (typeof MOLDES !== 'undefined' && MOLDES[P.model]) ? MOLDES[P.model].sheet : { w: 120, h: 110 };
     const rep = new THREE.Vector2(sheet.w / 3.2, sheet.h / 3.2);
+    m.userData.rep = rep; m.userData.rep0 = rep.clone();
     m.onBeforeCompile = (sh) => {
       sh.uniforms.knitRep = { value: rep };
       const chunk = THREE.ShaderChunk.normal_fragment_maps.split('texture2D( normalMap, vUv )').join('texture2D( normalMap, vUv * knitRep )');
@@ -146,10 +148,13 @@ const Mock = (() => {
   function setLook(o) {
     Object.assign(look, o);
     roupaMats.forEach((m) => {
+      if (m.userData.rep) m.userData.rep.copy(m.userData.rep0).multiplyScalar(1 / look.knit);
       m.aoMapIntensity = look.ao; m.normalScale.set(look.normal, look.normal);
-      m.envMapIntensity = 0.85 * look.luz; m.roughness = look.rough;
+      m.envMapIntensity = 0.42 * look.luz; m.roughness = look.rough;
     });
     if (scene) scene.children.forEach((c) => { if (c.isLight) c.intensity = (isGlb ? c.userData.roupa : c.userData.base) * (isGlb ? look.luz : 1); });
+    if (ladoLight) { const a = (look.key * Math.PI) / 180; ladoLight.position.set(4.5 * Math.sin(a), 3.5, 4.5 * Math.cos(a)); }
+    if (renderer) renderer.domElement.style.filter = isGlb ? `brightness(${look.bri}) contrast(${look.con})` : '';
   }
 
   /* ---------- modelos ---------- */
@@ -165,11 +170,21 @@ const Mock = (() => {
           o.material = roupaMat(P);
         });
         g.add(sc);
+        // sombra suave embaixo (roupa "flutuando" no estúdio)
+        const bb = new THREE.Box3().setFromObject(sc);
+        const sz = bb.getSize(new THREE.Vector3());
+        const c2 = document.createElement('canvas'); c2.width = c2.height = 128;
+        const x2 = c2.getContext('2d'), gr = x2.createRadialGradient(64, 64, 0, 64, 64, 64);
+        gr.addColorStop(0, 'rgba(0,0,0,.42)'); gr.addColorStop(0.55, 'rgba(0,0,0,.16)'); gr.addColorStop(1, 'rgba(0,0,0,0)');
+        x2.fillStyle = gr; x2.fillRect(0, 0, 128, 128);
+        const sombra = new THREE.Mesh(new THREE.PlaneGeometry(sz.x * 1.1, sz.z * 1.6 + 0.1), new THREE.MeshBasicMaterial({ map: new THREE.CanvasTexture(c2), transparent: true, depthWrite: false }));
+        sombra.rotation.x = -Math.PI / 2; sombra.position.set((bb.min.x + bb.max.x) / 2, bb.min.y - sz.y * 0.16, (bb.min.z + bb.max.z) / 2);
+        sombra.userData.noFit = true; g.add(sombra);
         if (group === g) fit(camera);
       };
       if (glbCache[P.model]) usar(glbCache[P.model]);
       else new THREE.GLTFLoader().load(`modelos/${P.model}.glb`, (gltf) => { glbCache[P.model] = gltf.scene; usar(gltf.scene); }, undefined, (e) => console.error('modelo 3D', e));
-      return { group: g, spin: 'full', elev: 0.08, start: -0.4, cover: 0, views: [['Frente', 0], ['Lado', -0.9], ['Costas', Math.PI]] };
+      return { group: g, spin: 'full', elev: 0.3, start: 0, cover: 0, views: [['Frente', 0], ['Lado', -0.9], ['Costas', Math.PI]] };
     },
 
     mug(S, color, P) {
@@ -377,7 +392,7 @@ const Mock = (() => {
     isGlb = P.mock === 'glb';
     if (isGlb) texture.flipY = false;
     roupaMats = [];
-    renderer.toneMapping = isGlb ? THREE.ACESFilmicToneMapping : THREE.NoToneMapping;
+    renderer.toneMapping = THREE.NoToneMapping;
     renderer.toneMappingExposure = 1.05;
     pitch = 0; zoomK = 1;
     setLook({});

@@ -8,8 +8,10 @@ const Garment = (() => {
     dryfit: { rough: 0.55, normal: 0.1, ao: 1.15 },
     linho: { rough: 0.9, normal: 0.55, ao: 1.35 },
   };
-  let lookState = { mat: 'algodao', ao: 100, norm: 60, luz: 100, bg: 'folhas' };
+  const LOOK0 = { mat: 'algodao', ao: 100, norm: 60, luz: 100, bg: 'cinza', knit: 100, key: 215, bri: 100, con: 100 };
+  let lookState = { ...LOOK0 };
 
+  let ultimoModelo = null;
   /* ---------- liga/desliga o modo ---------- */
   function onProduct() {
     const on = !!curP().molde;
@@ -27,6 +29,7 @@ const Garment = (() => {
       api.zoom = 1;
       requestAnimationFrame(() => { fit(); Mock.resize(); });
     }
+    if (on && curP().model !== ultimoModelo) { lookState.bg = curP().model === 'moletom' ? 'salvia' : 'cinza'; ultimoModelo = curP().model; }
     if (on) { aplicarLook(); renderPlace(); renderLayers(); }
   }
 
@@ -324,14 +327,18 @@ const Garment = (() => {
   /* ---------- aparência ---------- */
   function aplicarLook() {
     const base = LOOKS[lookState.mat] || LOOKS.algodao;
-    Mock.setLook({ rough: base.rough, ao: (base.ao * lookState.ao) / 100, normal: (base.normal * lookState.norm) / 60, luz: lookState.luz / 100 });
+    Mock.setLook({ rough: base.rough, ao: (base.ao * lookState.ao) / 100, normal: (base.normal * lookState.norm) / 60, luz: lookState.luz / 100,
+      knit: lookState.knit / 100, key: lookState.key, bri: lookState.bri / 100, con: lookState.con / 100 });
     $('viewport').className = 'viewport bg-' + lookState.bg;
     $('lkMat').value = lookState.mat; $('lkAo').value = lookState.ao; $('lkNorm').value = lookState.norm; $('lkLuz').value = lookState.luz; $('lkBg').value = lookState.bg;
+    $('lkKnit').value = lookState.knit; $('lkKey').value = lookState.key; $('lkBri').value = lookState.bri; $('lkCon').value = lookState.con;
   }
   const lk = (id, key, num) => $(id).addEventListener('input', () => { lookState[key] = num ? +$(id).value : $(id).value; aplicarLook(); markDirty(); });
   lk('lkMat', 'mat'); lk('lkAo', 'ao', 1); lk('lkNorm', 'norm', 1); lk('lkLuz', 'luz', 1); lk('lkBg', 'bg');
+  lk('lkKnit', 'knit', 1); lk('lkKey', 'key', 1); lk('lkBri', 'bri', 1); lk('lkCon', 'con', 1);
+  $('lkReset').onclick = () => { lookState = { ...LOOK0 }; aplicarLook(); markDirty(); };
   api.getLook = () => ({ ...lookState });
-  api.setLook = (l) => { lookState = { ...lookState, ...(l || {}) }; if (api.ativo) aplicarLook(); };
+  api.setLook = (l) => { lookState = { ...lookState, ...(l || {}) }; ultimoModelo = curP().model; if (api.ativo) aplicarLook(); };
 
   api.onProduct = onProduct;
   api.renderLayers = renderLayers;

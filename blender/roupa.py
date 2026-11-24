@@ -91,11 +91,11 @@ if NOME == 'camiseta':
     # camiseta oversized, ombro caído
     FR = tronco(29, 72, 27, 69, 9, 73, 29, 45, (27.6, 56), 59)
     BK = tronco(29, 72, 27, 69, 9, 73, 29, 45, (27.6, 56), 70)
-    SL = manga(23, 23.5, 9, 17.5, (15, 12.5), (7, 17.5))
+    SL = manga(24.5, 24.5, 14, 23, (16.5, 17.5), (8, 23))
     neck_len = seg_len(FR, 'neckR') + seg_len(FR, 'neckL') + seg_len(BK, 'neckR') + seg_len(BK, 'neckL')
     GL = round(neck_len * 1.0, 1)
     G = {
-        'label': 'Camiseta oversized', 'z0': 0.80, 'arm_deg': 52, 'arm_len': 0.32, 'bend': 0.3, 'init': 1.08,
+        'label': 'Camiseta oversized', 'z0': 0.80, 'arm_deg': 48, 'arm_len': 0.36, 'bend': 0.9, 'init': 1.08, 'gola_firme': 2.1, 'suave': 4, 'alisar': 32,
         'manequim': {'peito': (0.2, 0.135), 'quadril': (0.196, 0.13), 'ombros': (0.215, 0.105)},
         'pieces': {
             'frente': {'label': 'Frente', 'segs': FR, 'place': ('torso', 'F')},
@@ -138,7 +138,7 @@ elif NOME == 'moletom':
         ('abreE', bez((-14, 19), (-19.5, 11), (-20, 0))),
     ]
     G = {
-        'label': 'Moletom canguru', 'z0': 0.86, 'arm_deg': 60, 'arm_len': 0.62, 'bend': 0.3, 'corpo': 1.12, 'init': 1.05,
+        'label': 'Moletom canguru', 'z0': 0.86, 'arm_deg': 60, 'arm_len': 0.62, 'pose': 'bolso', 'bend': 0.5, 'corpo': 1.2, 'fundo': 1.25, 'init': 1.06, 'alisar': 10,
         'pieces': {
             'frente': {'label': 'Frente', 'segs': FR, 'place': ('torso', 'F')},
             'costas': {'label': 'Costas', 'segs': BK, 'place': ('torso', 'B')},
@@ -177,7 +177,7 @@ elif NOME == 'sueter':
     neck_len = seg_len(FR, 'neckR') + seg_len(FR, 'neckL') + seg_len(BK, 'neckR') + seg_len(BK, 'neckL')
     GL = round(neck_len * 1.0, 1)
     G = {
-        'label': 'Suéter gola careca', 'z0': 0.86, 'arm_deg': 60, 'arm_len': 0.62, 'bend': 0.3, 'corpo': 1.12, 'init': 1.05,
+        'label': 'Suéter gola careca', 'z0': 0.86, 'arm_deg': 60, 'arm_len': 0.62, 'bend': 0.5, 'corpo': 1.12, 'init': 1.05, 'alisar': 14, 'gola_firme': 3.0,
         'pieces': {
             'frente': {'label': 'Frente', 'segs': FR, 'place': ('torso', 'F')},
             'costas': {'label': 'Costas', 'segs': BK, 'place': ('torso', 'B')},
@@ -185,8 +185,8 @@ elif NOME == 'sueter':
             'mangaD': {'label': 'Manga direita', 'segs': SL, 'place': ('sleeve', -1)},
             'gola':   {'label': 'Gola (ribana)', 'segs': [
                 ('baseF', line((-GL/2, 0), (0, 0))), ('baseB', line((0, 0), (GL/2, 0))),
-                ('ladoD', line((GL/2, 0), (GL/2, 3.2))), ('topo', line((GL/2, 3.2), (-GL/2, 3.2))),
-                ('ladoE', line((-GL/2, 3.2), (-GL/2, 0)))], 'place': ('collar',)},
+                ('ladoD', line((GL/2, 0), (GL/2, 3.0))), ('topo', line((GL/2, 3.0), (-GL/2, 3.0))),
+                ('ladoE', line((-GL/2, 3.0), (-GL/2, 0)))], 'place': ('collar',)},
             'punhoE': {'label': 'Punho esquerdo', 'segs': tira(CUFF, 7), 'place': ('cuff', 1)},
             'punhoD': {'label': 'Punho direito', 'segs': tira(CUFF, 7), 'place': ('cuff', -1)},
             'barra':  {'label': 'Barra', 'segs': tira(BAND, 7, True), 'place': ('band',)},
@@ -288,14 +288,44 @@ def arm_frame(s):
     a = Vector((s * math.cos(ARM), 0, -math.sin(ARM)))
     u = Vector((s * math.sin(ARM), 0, math.cos(ARM)))
     return Vector((s * SH, 0, SHZ)), a, u, Vector((0, -1, 0))
+def arm_pts(s):
+    if G.get('pose') == 'bolso':  # mãos no bolso: braço desce rente ao corpo e o antebraço vem pra frente até o bolso
+        return [Vector((s * SH, 0, SHZ)), Vector((s * 0.285, 0.015, SHZ - 0.31)), Vector((s * 0.2, -0.19, SHZ - 0.45)), Vector((s * 0.135, -0.172, SHZ - 0.48))]
+    o, a, u, f = arm_frame(s)
+    return [o, o + a * 2.0]
+def _frames(s):
+    pts = arm_pts(s); out = []; prev = None
+    for i in range(len(pts) - 1):
+        a = (pts[i+1] - pts[i]).normalized()
+        w = Vector((s, 0, 0.6)); u = (w - a * w.dot(a)).normalized()
+        f = a.cross(u).normalized()
+        if f.y > 0 and prev is None: f = -f
+        if prev is not None:
+            if f.dot(prev[1]) < 0: f = -f
+            u = f.cross(a).normalized()
+            if u.dot(prev[0]) < 0: u = -u
+        else:
+            u = f.cross(a).normalized() if f.cross(a).normalized().dot(w) > 0 else -f.cross(a).normalized()
+        out.append((pts[i], a, u, f, (pts[i+1] - pts[i]).length)); prev = (u, f)
+    return out
+def arm_at(s, t):
+    fr = _frames(s); acc = 0.0
+    for k, (p0, a, u, f, L) in enumerate(fr):
+        if t <= acc + L or k == len(fr) - 1: return p0 + a * (t - acc), a, u, f
+        acc += L
 SLW = max(x for _, pts in P['mangaE']['segs'] for x, _ in pts) * 2
 SLH = max(y for _, pts in P['mangaE']['segs'] for _, y in pts)
 RS = (SLW * CM) / (2 * math.pi)
+def _path_len(s): return sum(f[4] for f in _frames(s))
+def _comprime(s, t):
+    if G.get('pose') != 'bolso': return t
+    total = 0.08 + SLH * CM + 0.07
+    return t * (_path_len(s) / total)
 def sleeve_pos(s, x, y):
-    o, a, u, f = arm_frame(s)
     th = (x * CM) / RS
-    t = 0.08 + (SLH - y) * CM
-    return o + a * t + (u * math.cos(th) + f * math.sin(th)) * RS
+    t = _comprime(s, 0.08 + (SLH - y) * CM)
+    c, a, u, f = arm_at(s, t)
+    return c + (u * math.cos(th) + f * math.sin(th)) * RS
 def place(pc, x, y):
     kind = pc['place']
     if kind[0] == 'torso': return torso_pos(kind[1], x, y)
@@ -327,11 +357,12 @@ def place(pc, x, y):
     if kind[0] == 'pocket':
         return torso_pos('F', x, y + kind[1], out=0.012)
     if kind[0] == 'cuff':
-        s = kind[1]; o, a, uu, f = arm_frame(s)
+        s = kind[1]
         L = max(px for _, pts in pc['segs'] for px, _ in pts) * 2; rr = (L * CM) / (2 * math.pi)
         th = (x / (L/2)) * math.pi
-        t = 0.08 + SLH * CM + (7 - y) * CM
-        return o + a * t + (uu * math.cos(th) + f * math.sin(th)) * rr
+        t = _comprime(s, 0.08 + SLH * CM + (7 - y) * CM)
+        c, a, uu, f = arm_at(s, t)
+        return c + (uu * math.cos(th) + f * math.sin(th)) * rr
     if kind[0] == 'band':
         L = max(px for _, pts in pc['segs'] for px, _ in pts) * 2; rr = (L * CM) / (2 * math.pi)
         psi = math.pi + (x / (L/2)) * math.pi
@@ -403,8 +434,13 @@ print('malha', len(verts3), 'verts', len(faces), 'tris', len(sew), 'costuras', l
 # ---------------- cena ----------------
 bpy.ops.wm.read_factory_settings(use_empty=True)
 scn = bpy.context.scene
+GOLA_FORA = bool(G.get('gola_firme')) and 'gola' in P
+gset = set(piece_verts['gola']) if GOLA_FORA else set()
+sew_sim = [(i, j) for i, j in sew if i not in gset and j not in gset]
+if GOLA_FORA:
+    for vi in gset: verts3[vi] = verts3[vi] + Vector((0, 0, 1.5))
 me = bpy.data.meshes.new(NOME)
-me.from_pydata([tuple(v) for v in verts3], sew + tacks, faces)
+me.from_pydata([tuple(v) for v in verts3], sew_sim + tacks, faces)
 me.update()
 uvl = me.uv_layers.new(name='molde')
 for poly in me.polygons:
@@ -445,8 +481,16 @@ body = [
     ellipsoid('pescoco', (0, 0, Z0 + 0.76), (0.05, 0.05, 0.10)),
 ]
 if NOME == 'moletom':
-    body.append(ellipsoid('cabeca', (0, 0.015, Z0 + 0.885), (0.082, 0.098, 0.112)))
+    body.append(ellipsoid('cabeca', (0, 0.015, Z0 + 0.88), (0.088, 0.1, 0.108)))
 for s in (1, -1):
+    if G.get('pose') == 'bolso':
+        pts = arm_pts(s)
+        for i in range(len(pts) - 1):
+            d = pts[i+1] - pts[i]; c = (pts[i] + pts[i+1]) / 2
+            rot = Vector((0, 0, 1)).rotation_difference(d.normalized()).to_euler()
+            eb = ellipsoid('braco', tuple(c), (0.04, 0.04, d.length / 2 + 0.035), tuple(rot))
+            eb.collision.cloth_friction = 40; body.append(eb)
+        continue
     o, a, u, f = arm_frame(s)
     c = o + a * (G['arm_len'] / 2 + 0.02)
     ang = math.degrees(math.atan2(a.x, a.z))
@@ -465,8 +509,14 @@ kv.value = 1.0
 for i, v in enumerate(flat3): me.vertices[i].co = v
 cl = ob.modifiers.new('Cloth', 'CLOTH'); cs = cl.settings
 cs.rest_shape_key = kb
+pinos = set(gset)
+if G.get('pose') == 'bolso':
+    for pn in ('punhoE', 'punhoD'): pinos |= set(piece_verts.get(pn, []))
+if pinos:
+    vg = ob.vertex_groups.new(name='pino'); vg.add(list(pinos), 1.0, 'REPLACE')
+    cs.vertex_group_mass = 'pino'
 cs.quality = 10; cs.mass = 0.2
-cs.tension_stiffness = 12; cs.compression_stiffness = 12; cs.shear_stiffness = 4; cs.bending_stiffness = G['bend']
+cs.tension_stiffness = G.get('tensao', 12); cs.compression_stiffness = 12; cs.shear_stiffness = 4; cs.bending_stiffness = G['bend']
 cs.air_damping = 1.5; cs.use_sewing_springs = True; cs.sewing_force_max = 6
 cc = cl.collision_settings
 cc.distance_min = 0.004; cc.use_self_collision = True; cc.self_distance_min = 0.003
@@ -491,6 +541,30 @@ for f in range(1, FRAMES + 1):
 dg = bpy.context.evaluated_depsgraph_get()
 final = bpy.data.meshes.new_from_object(ob.evaluated_get(dg)); final.name = NOME + '_final'
 res = bpy.data.objects.new(NOME.capitalize(), final); scn.collection.objects.link(res)
+if G.get('gola_firme') and 'gola' in P:
+    fv = final.vertices
+    def loop_final(fb):
+        pn = 'frente' if fb == 'F' else 'costas'
+        idx = seg_idx[(pn, 'neckR')] + seg_idx[(pn, 'neckL')][1:]
+        return [fv[i].co.copy() for i in idx]
+    LF, LB = loop_final('F'), loop_final('B')
+    cen = sum(LF + LB, Vector()) / (len(LF) + len(LB))
+    Lg = max(px for _, pts in P['gola']['segs'] for px, _ in pts) * 2
+    def em(loop, u):
+        acc = [0.0]
+        for i in range(1, len(loop)): acc.append(acc[-1] + (loop[i] - loop[i-1]).length)
+        d = u * acc[-1]; i = 1
+        while i < len(acc) - 1 and acc[i] < d: i += 1
+        f = 0 if acc[i] == acc[i-1] else (d - acc[i-1]) / (acc[i] - acc[i-1])
+        return loop[i-1].lerp(loop[i], max(0, min(1, f)))
+    for vi in piece_verts['gola']:
+        _, x, y = flat_of[vi]
+        b = em(LF, (x + Lg/2) / (Lg/2)) if x <= 0 else em(LB, x / (Lg/2))
+        dentro = Vector((cen.x - b.x, cen.y - b.y, 0)).normalized()
+        hg = G['gola_firme']; t = y / hg
+        # ribana deita pra dentro em curva suave (sobe e vai pro pescoço), com volume no meio
+        d = (Vector((0, 0, 1)) * 0.95 + dentro * (0.16 + 0.12 * t)).normalized()
+        fv[vi].co = b + d * (y * CM) - dentro * 0.003 * math.sin(math.pi * t)
 bm = bmesh.new(); bm.from_mesh(final); bm.verts.ensure_lookup_table()
 alvo = {}
 def raiz(i):
@@ -508,7 +582,11 @@ bm.to_mesh(final); bm.free()
 for p in final.polygons: p.use_smooth = True
 bpy.data.objects.remove(ob, do_unlink=True)
 bpy.context.view_layer.update()
-sm = res.modifiers.new('Suave', 'SMOOTH'); sm.factor = 0.5; sm.iterations = 2
+sm = res.modifiers.new('Suave', 'SMOOTH'); sm.factor = 0.5; sm.iterations = G.get('suave', 2)
+if G.get('alisar'):
+    # alisa pregas grandes mantendo o volume (a roupa não encolhe)
+    ls = res.modifiers.new('Alisar', 'LAPLACIANSMOOTH'); ls.iterations = G['alisar']; ls.lambda_factor = 0.8
+    ls.use_volume_preserve = True; ls.use_normalized = True
 mat = bpy.data.materials.new('estampa'); mat.use_nodes = True; final.materials.append(mat)
 
 # sombra de dobra (AO) assada no molde
@@ -521,6 +599,10 @@ for o in list(scn.objects):
 res.select_set(True); bpy.context.view_layer.objects.active = res
 scn.render.bake.margin = 12
 bpy.ops.object.bake(type='AO')
+import numpy as np
+px = np.empty(AO_W * AO_H * 4, dtype=np.float32); img.pixels.foreach_get(px)
+px = px.reshape(-1, 4); px[:, :3] = 0.38 + 0.62 * px[:, :3]  # sombra mais escura vira cinza, nunca preto
+img.pixels.foreach_set(px.ravel())
 img.filepath_raw = os.path.join(OUT, NOME + '-ao.png'); img.file_format = 'PNG'; img.save()
 nodes.remove(tex)
 print('AO ok', flush=True)

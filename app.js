@@ -167,7 +167,9 @@ function ensurePecas() {
   if (!m) { pecaObjs().forEach((o) => canvas.remove(o)); muted = false; return; }
   const k = W / m.sheet.w;
   // peças de outra roupa (ou de outro tamanho de folha) saem: o molde é trocado inteiro
-  pecaObjs().filter((o) => o.data.model !== curP().model || Math.abs((o.data.k || k) - k) > 1e-6).forEach((o) => canvas.remove(o));
+  const velhas = pecaObjs().filter((o) => o.data.model !== curP().model || Math.abs((o.data.k || k) - k) > 1e-6);
+  if (velhas.length) alvoOff.clear();
+  velhas.forEach((o) => canvas.remove(o));
   const have = new Set(pecaObjs().map((o) => o.data.peca));
   m.pecas.forEach((p, i) => {
     if (have.has(p.id)) return;
@@ -614,7 +616,7 @@ $('saveBtn').onclick = () => saveProject(true);
 
 $('clienteName').addEventListener('input', (e) => { manualData = { ...manualData, cliente: e.target.value.trim() }; markDirty(); });
 function newProject() {
-  projectId = null; $('projName').value = ''; manualData = {}; $('clienteName').value = ''; fundoId = null; markFundos();
+  projectId = null; $('projName').value = ''; manualData = {}; $('clienteName').value = ''; fundoId = null; markFundos(); alvoOff.clear();
   loadingProject = true;
   muted = true; canvas.clear(); base = null; muted = false;
   applyProduct(false);
