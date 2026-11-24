@@ -93,9 +93,10 @@ if NOME == 'camiseta':
     BK = tronco(29, 72, 27, 69, 9, 73, 29, 45, (27.6, 56), 70)
     SL = manga(23, 23.5, 9, 17.5, (15, 12.5), (7, 17.5))
     neck_len = seg_len(FR, 'neckR') + seg_len(FR, 'neckL') + seg_len(BK, 'neckR') + seg_len(BK, 'neckL')
-    GL = round(neck_len * 0.92, 1)
+    GL = round(neck_len * 1.0, 1)
     G = {
-        'label': 'Camiseta oversized', 'z0': 0.80, 'arm_deg': 55, 'arm_len': 0.32, 'bend': 0.16, 'corpo': 1.14,
+        'label': 'Camiseta oversized', 'z0': 0.80, 'arm_deg': 52, 'arm_len': 0.32, 'bend': 0.3, 'init': 1.08,
+        'manequim': {'peito': (0.2, 0.135), 'quadril': (0.196, 0.13), 'ombros': (0.215, 0.105)},
         'pieces': {
             'frente': {'label': 'Frente', 'segs': FR, 'place': ('torso', 'F')},
             'costas': {'label': 'Costas', 'segs': BK, 'place': ('torso', 'B')},
@@ -137,7 +138,7 @@ elif NOME == 'moletom':
         ('abreE', bez((-14, 19), (-19.5, 11), (-20, 0))),
     ]
     G = {
-        'label': 'Moletom canguru', 'z0': 0.86, 'arm_deg': 62, 'arm_len': 0.62, 'bend': 0.2, 'corpo': 1.12,
+        'label': 'Moletom canguru', 'z0': 0.86, 'arm_deg': 60, 'arm_len': 0.62, 'bend': 0.3, 'corpo': 1.12, 'init': 1.05,
         'pieces': {
             'frente': {'label': 'Frente', 'segs': FR, 'place': ('torso', 'F')},
             'costas': {'label': 'Costas', 'segs': BK, 'place': ('torso', 'B')},
@@ -174,9 +175,9 @@ elif NOME == 'sueter':
     SL = manga(13, 23, 44, 56, (15, 49), (7, 56))
     BAND = round((56 + 56) * 0.9, 1); CUFF = 22
     neck_len = seg_len(FR, 'neckR') + seg_len(FR, 'neckL') + seg_len(BK, 'neckR') + seg_len(BK, 'neckL')
-    GL = round(neck_len * 0.9, 1)
+    GL = round(neck_len * 1.0, 1)
     G = {
-        'label': 'Suéter gola careca', 'z0': 0.86, 'arm_deg': 62, 'arm_len': 0.62, 'bend': 0.2, 'corpo': 1.12,
+        'label': 'Suéter gola careca', 'z0': 0.86, 'arm_deg': 60, 'arm_len': 0.62, 'bend': 0.3, 'corpo': 1.12, 'init': 1.05,
         'pieces': {
             'frente': {'label': 'Frente', 'segs': FR, 'place': ('torso', 'F')},
             'costas': {'label': 'Costas', 'segs': BK, 'place': ('torso', 'B')},
@@ -205,6 +206,8 @@ elif NOME == 'sueter':
         ],
         'tacks': [],
     }
+if os.environ.get('SEMGOLA') and 'gola' in G['pieces']:
+    del G['pieces']['gola']; G['seams'] = [sm for sm in G['seams'] if sm[0][0] != 'gola' and sm[1][0] != 'gola']
 P = G['pieces']
 STEP = 1.25
 
@@ -216,12 +219,20 @@ def side_pts(spec):
     if len(spec) > 3: pts = pts + list(segs[spec[3]])[1:]
     return pts
 NSEG = {}
-def key(spec): return (spec[0], spec[1])
+def n_total(spec):
+    if len(spec) > 3: return NSEG.get((spec[0], spec[1]), 0) + NSEG.get((spec[0], spec[3]), 0)
+    return NSEG.get((spec[0], spec[1]), 0)
+def set_n(spec, n):
+    if len(spec) > 3:  # segmento composto: divide os pontos na proporção do comprimento de cada metade
+        segs = dict(P[spec[0]]['segs']); l1, l2 = plen(segs[spec[1]]), plen(segs[spec[3]])
+        n1 = max(1, round(n * l1 / (l1 + l2))); NSEG[(spec[0], spec[1])] = n1; NSEG[(spec[0], spec[3])] = n - n1
+    else:
+        NSEG[(spec[0], spec[1])] = n
 for _ in range(3):
     for a, b in G['seams']:
         la, lb = plen(side_pts(a)), plen(side_pts(b))
-        n = max(2, round(max(la, lb) / STEP), NSEG.get(key(a), 0), NSEG.get(key(b), 0))
-        NSEG[key(a)] = NSEG[key(b)] = n
+        n = max(2, round(max(la, lb) / STEP), n_total(a), n_total(b))
+        set_n(a, n); set_n(b, n)
 
 # ---------------- empacota as peças numa folha ----------------
 GAP = 5; SHEET_W = {'moletom': 160, 'sueter': 140}.get(NOME, 132)
@@ -257,9 +268,17 @@ def elipse_em(arc):
         else: hi = m
     t = 0 if _S[hi] == _S[lo] else (arc - _S[lo]) / (_S[hi] - _S[lo])
     return (_P[lo][0] + (_P[hi][0] - _P[lo][0]) * t, _P[lo][1] + (_P[hi][1] - _P[lo][1]) * t)
+Y_ARM = dict(P['frente']['segs'])['sideR'][-1][1]
+Y_TOP = max(py for _, pts in P['frente']['segs'] for _, py in pts)
 def torso_pos(fb, x, y, out=0.0):
     z = Z0 + y * CM
     px, py = elipse_em(x * CM) if fb == 'F' else elipse_em(CIRC / 2 + x * CM)
+    # acima da cava o tecido já começa fechando sobre o ombro e o decote perto do pescoço
+    px *= G.get('init', 1.0); py *= G.get('init', 1.0)
+    t = max(0.0, min(1.0, (y - Y_ARM) / (Y_TOP - Y_ARM)))
+    k = 1 - 0.45 * t * t
+    py *= k
+    px *= 1 - 0.12 * t * t
     if out:
         n = Vector((px, py)).normalized(); px += n.x * out; py += n.y * out
     return Vector((px, py, z))
@@ -282,7 +301,21 @@ def place(pc, x, y):
     if kind[0] == 'torso': return torso_pos(kind[1], x, y)
     if kind[0] == 'sleeve': return sleeve_pos(kind[1], x, y)
     if kind[0] == 'collar':
+        # nasce em cima do decote: metade esquerda da gola na frente, metade direita nas costas
         L = max(px for _, pts in pc['segs'] for px, _ in pts) * 2
+        def neck_loop(fb):
+            segs = dict(P['frente' if fb == 'F' else 'costas']['segs'])
+            pts = list(segs['neckR']) + list(segs['neckL'])[1:]
+            return [torso_pos(fb, qx, qy) for qx, qy in pts]
+        loop = neck_loop('F') if x <= 0 else neck_loop('B')
+        u = (x + L/2) / (L/2) if x <= 0 else x / (L/2)
+        acc = [0.0]
+        for i in range(1, len(loop)): acc.append(acc[-1] + (loop[i] - loop[i-1]).length)
+        d = u * acc[-1]; i = 1
+        while i < len(acc) - 1 and acc[i] < d: i += 1
+        f = 0 if acc[i] == acc[i-1] else (d - acc[i-1]) / (acc[i] - acc[i-1])
+        p0 = loop[i-1].lerp(loop[i], max(0, min(1, f)))
+        return Vector((p0.x * (1 - 0.02 * y), p0.y * (1 - 0.02 * y), p0.z + y * CM))
         psi = -((x + L/2) / L) * 2 * math.pi; rr = (L * CM) / (2 * math.pi)
         fmin = min(py for _, pts in P['frente']['segs'] if _ .startswith('neck') for _, py in pts)
         bmin = min(py for _, pts in P['costas']['segs'] if _ .startswith('neck') for _, py in pts)
@@ -349,6 +382,7 @@ def side_idx(spec):
 sew = []
 for a, b in G['seams']:
     ia, ib = side_idx(a), side_idx(b)
+    if len(ia) != len(ib): print('aviso: costura com contagem diferente', a, b, len(ia), len(ib), flush=True)
     if len(ia) != len(ib):
         n = min(len(ia), len(ib))
         ia = [ia[round(i * (len(ia)-1) / (n-1))] for i in range(n)]; ib = [ib[round(i * (len(ib)-1) / (n-1))] for i in range(n)]
@@ -376,17 +410,38 @@ uvl = me.uv_layers.new(name='molde')
 for poly in me.polygons:
     for li in poly.loop_indices: uvl.data[li].uv = uvs[me.loops[li].vertex_index]
 ob = bpy.data.objects.new(NOME, me); scn.collection.objects.link(ob)
+if os.environ.get('MALHA'):
+    bm = bmesh.new(); bm.from_mesh(me)
+    sew_set = set(map(frozenset, sew + tacks))
+    soltas = [e for e in bm.edges if len(e.link_faces) == 1]
+    meio = []
+    for e in soltas:
+        a_, b_ = e.verts[0].index, e.verts[1].index
+        pa, pb = flat_of[a_], flat_of[b_]
+        if pa[0] in ('frente', 'costas') and abs(pa[1]) < 3 and abs(pb[1]) < 3 and 2 < pa[2] < 60: meio.append((pa, pb))
+    print('bordas abertas', len(soltas), 'no meio da frente/costas:', len(meio), meio[:6], flush=True)
+    dup = {}
+    for i, f in enumerate(flat_of): dup.setdefault((f[0], round(f[1], 3), round(f[2], 3)), []).append(i)
+    print('vertices duplicados', sum(1 for v in dup.values() if len(v) > 1), flush=True)
+    sus = [(flat_of[i], flat_of[j]) for i, j in sew + tacks if any(flat_of[k][0] in ('frente', 'costas') and abs(flat_of[k][1]) < 3 and flat_of[k][2] < 60 for k in (i, j))]
+    print('costuras no centro:', len(sus), [(tuple(round(v, 1) if isinstance(v, float) else v for v in a_), tuple(round(v, 1) if isinstance(v, float) else v for v in b_)) for a_, b_ in sus[:8]], flush=True)
+    import collections
+    grau = collections.Counter([i for i, j in sew] + [j for i, j in sew])
+    muitos = [(flat_of[k], c) for k, c in grau.items() if c > 2]
+    print('vertices com muitas costuras:', len(muitos), [(tuple(round(v, 1) if isinstance(v, float) else v for v in a_), c) for a_, c in muitos[:8]], flush=True)
+    print('hem frente idx', seg_idx[('frente', 'hem')][:3], '...', flush=True)
+    sys.exit(0)
 
 def ellipsoid(name, loc, scale, rot=(0, 0, 0)):
     bpy.ops.mesh.primitive_uv_sphere_add(segments=32, ring_count=16, location=loc, rotation=rot)
     o = bpy.context.active_object; o.name = name; o.scale = scale
-    o.modifiers.new('Col', 'COLLISION'); o.collision.thickness_outer = 0.006; o.collision.cloth_friction = 10
+    o.modifiers.new('Col', 'COLLISION'); o.collision.thickness_outer = 0.006; o.collision.cloth_friction = 0.5
     return o
-zc = Z0 - 0.80; K = G.get('corpo', 1.0)
+zc = Z0 - 0.80; K = G.get('corpo', 1.0); KD = G.get('fundo', K)
 body = [
-    ellipsoid('peito', (0, 0, 1.30 + zc), (0.155 * K, 0.10 * K, 0.21)),
-    ellipsoid('quadril', (0, 0, 0.98 + zc), (0.15 * K, 0.10 * K, 0.26)),
-    ellipsoid('ombros', (0, 0, SHZ + 0.01), (0.175 * K, 0.08 * K, 0.055)),
+    ellipsoid('peito', (0, 0, 1.30 + zc), G['manequim']['peito'] + (0.21,) if 'manequim' in G else (0.155 * K, 0.10 * KD, 0.21)),
+    ellipsoid('quadril', (0, 0, 0.98 + zc), G['manequim']['quadril'] + (0.26,) if 'manequim' in G else (0.15 * K, 0.10 * KD, 0.26)),
+    ellipsoid('ombros', (0, 0, SHZ + 0.01), G['manequim']['ombros'] + (0.055,) if 'manequim' in G else (0.175 * K, 0.08 * KD, 0.055)),
     ellipsoid('pescoco', (0, 0, Z0 + 0.76), (0.05, 0.05, 0.10)),
 ]
 if NOME == 'moletom':
@@ -397,7 +452,19 @@ for s in (1, -1):
     ang = math.degrees(math.atan2(a.x, a.z))
     body.append(ellipsoid('braco', tuple(c), (0.042, 0.042, G['arm_len'] / 2 + 0.03), (0, math.radians(ang), 0)))
 
+# forma de descanso = molde plano (o tecido "quer" ficar reto, como tecido de verdade)
+flat3 = []
+for pname, x, y in flat_of:
+    ox, oy = P[pname]['sheet']
+    flat3.append(Vector(((x + ox) * CM, (y + oy) * CM, 0)))
+kb = ob.shape_key_add(name='Basis')
+for i, v in enumerate(flat3): kb.data[i].co = v
+kv = ob.shape_key_add(name='vestido', from_mix=False)
+for i, v in enumerate(verts3): kv.data[i].co = v
+kv.value = 1.0
+for i, v in enumerate(flat3): me.vertices[i].co = v
 cl = ob.modifiers.new('Cloth', 'CLOTH'); cs = cl.settings
+cs.rest_shape_key = kb
 cs.quality = 10; cs.mass = 0.2
 cs.tension_stiffness = 12; cs.compression_stiffness = 12; cs.shear_stiffness = 4; cs.bending_stiffness = G['bend']
 cs.air_damping = 1.5; cs.use_sewing_springs = True; cs.sewing_force_max = 6
@@ -406,12 +473,20 @@ cc.distance_min = 0.004; cc.use_self_collision = True; cc.self_distance_min = 0.
 FRAMES = 200
 cl.point_cache.frame_start = 1; cl.point_cache.frame_end = FRAMES
 scn.frame_start = 1; scn.frame_end = FRAMES
+# tecido firme enquanto as costuras fecham (evita vinco), depois volta ao normal
+cs.bending_stiffness = 4.0
+cs.keyframe_insert(data_path='bending_stiffness', frame=1); cs.keyframe_insert(data_path='bending_stiffness', frame=75)
+cs.bending_stiffness = G['bend']; cs.keyframe_insert(data_path='bending_stiffness', frame=115)
 ew = cs.effector_weights
 ew.gravity = 0.0; ew.keyframe_insert(data_path='gravity', frame=1); ew.keyframe_insert(data_path='gravity', frame=70)
 ew.gravity = 1.0; ew.keyframe_insert(data_path='gravity', frame=110)
 for f in range(1, FRAMES + 1):
     scn.frame_set(f)
-    if f % 50 == 0: print('frame', f, flush=True)
+    if f in (1, 2, 10) or f % 50 == 0:
+        ev = ob.evaluated_get(bpy.context.evaluated_depsgraph_get())
+        zs = [v.co.z for v in ev.data.vertices]; ys = [v.co.y for v in ev.data.vertices]
+        print('frame', f, 'z', round(min(zs), 3), round(max(zs), 3), 'y', round(min(ys), 3), round(max(ys), 3), flush=True)
+        if f == 2 and max(zs) - min(zs) < 0.05: print('ERRO: começou plano', flush=True); sys.exit(1)
 
 dg = bpy.context.evaluated_depsgraph_get()
 final = bpy.data.meshes.new_from_object(ob.evaluated_get(dg)); final.name = NOME + '_final'

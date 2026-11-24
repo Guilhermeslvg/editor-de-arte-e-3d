@@ -166,13 +166,15 @@ function ensurePecas() {
   muted = true;
   if (!m) { pecaObjs().forEach((o) => canvas.remove(o)); muted = false; return; }
   const k = W / m.sheet.w;
+  // peças de outra roupa (ou de outro tamanho de folha) saem: o molde é trocado inteiro
+  pecaObjs().filter((o) => o.data.model !== curP().model || Math.abs((o.data.k || k) - k) > 1e-6).forEach((o) => canvas.remove(o));
   const have = new Set(pecaObjs().map((o) => o.data.peca));
   m.pecas.forEach((p, i) => {
     if (have.has(p.id)) return;
     const cor = state.color || '#f5f5f2';
     const poly = new fabric.Polygon(p.outline.map(([x, y]) => ({ x: x * k, y: y * k })), {
       fill: cor, stroke: cor, strokeWidth: 0.5 * k, strokeLineJoin: 'round', selectable: false, evented: false, objectCaching: false,
-      data: { kind: 'peca', peca: p.id },
+      data: { kind: 'peca', peca: p.id, model: curP().model, k },
     });
     canvas.insertAt(poly, i);
   });

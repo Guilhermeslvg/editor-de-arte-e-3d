@@ -395,6 +395,11 @@ const Mock = (() => {
     tctx.drawImage(src, 0, 0, texCanvas.width, texCanvas.height);
     texture.needsUpdate = true;
   }
+  function shotsAt(w, h, list, elevExtra = 0) {
+    const vs = views; views = list.map((r, i) => [String(i), r]);
+    const e0 = elev; elev = elev + elevExtra;
+    const out = shots(w, h); views = vs; elev = e0; return out;
+  }
   function shots(w, h, only) {
     if (!shotRenderer) {
       shotRenderer = new THREE.WebGLRenderer({ antialias: true, alpha: true, preserveDrawingBuffer: true });
@@ -421,5 +426,5 @@ const Mock = (() => {
     if (v in map) { group.rotation.y = map[v]; vel = 0; swayT = 0; }
     if (v === 'reset') { pitch = 0; zoomK = 1; group.rotation.y = 0; vel = 0; fit(camera); }
   }
-  return { init, set, update, shots, resize, setLook, view, look };
+  return { init, set, update, shots, shotsAt, resize, setLook, view, look };
 })();
