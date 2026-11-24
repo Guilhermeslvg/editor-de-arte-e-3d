@@ -30,8 +30,9 @@ const canvas = new fabric.Canvas('c', {
 /* ---------- tamanho na tela ---------- */
 function fit() {
   const stage = $('stage');
-  const maxW = stage.clientWidth - 72, maxH = stage.clientHeight - 90;
-  let dw = Math.min(maxW, (maxH * W) / H);
+  const g = document.body.classList.contains('garment');
+  const maxW = stage.clientWidth - (g ? 56 : 72), maxH = stage.clientHeight - (g ? 56 : 90);
+  let dw = Math.min(maxW, (maxH * W) / H) * (g && typeof Garment !== 'undefined' ? Garment.zoom : 1);
   dw = Math.max(120, Math.floor(dw));
   const dh = Math.round((dw * H) / W);
   canvas.setDimensions({ width: dw, height: dh });
@@ -151,6 +152,7 @@ function applyProduct(rescale) {
   refitFundo();
   ensurePecas();
   fit(); updateGuides(); updateInfo();
+  if (typeof Garment !== 'undefined') Garment.onProduct();
   Mock.set(P, S, state.color, W, H);
   queueMug(true);
   if (rescale) { resetHistory(); markDirty(); }
@@ -167,8 +169,9 @@ function ensurePecas() {
   const have = new Set(pecaObjs().map((o) => o.data.peca));
   m.pecas.forEach((p, i) => {
     if (have.has(p.id)) return;
+    const cor = state.color || '#f5f5f2';
     const poly = new fabric.Polygon(p.outline.map(([x, y]) => ({ x: x * k, y: y * k })), {
-      fill: state.color || '#f5f5f2', strokeWidth: 0, selectable: false, evented: false, objectCaching: false,
+      fill: cor, stroke: cor, strokeWidth: 0.5 * k, strokeLineJoin: 'round', selectable: false, evented: false, objectCaching: false,
       data: { kind: 'peca', peca: p.id },
     });
     canvas.insertAt(poly, i);
@@ -176,18 +179,22 @@ function ensurePecas() {
   muted = false;
   fillPecasUI();
 }
-function pintarPecas(color) { pecaObjs().forEach((o) => o.set('fill', color)); fillPecasUI(); canvas.requestRenderAll(); queueMug(); }
+function pintarPecas(color) { pecaObjs().forEach((o) => o.set({ fill: color, stroke: color })); fillPecasUI(); canvas.requestRenderAll(); queueMug(); }
 function fillPecasUI() {
   const m = moldeAtual(), box = $('pecasBox');
   box.hidden = !m; box.innerHTML = '';
   if (!m) return;
-  box.insertAdjacentHTML('beforeend', '<p class="tiny">Cor de cada peça</p>');
+  box.insertAdjacentHTML('beforeend', '<p class="tiny">Cor de cada peça · ✓ = recebe a estampa dos Fundos</p>');
   m.pecas.forEach((p) => {
     const o = pecaObjs().find((x) => x.data.peca === p.id);
     const l = document.createElement('label');
-    l.innerHTML = `<span>${p.label}</span><input type="color" value="${toHex(o ? o.fill : state.color)}">`;
-    const inp = l.querySelector('input');
-    inp.oninput = () => { const ob = pecaObjs().find((x) => x.data.peca === p.id); if (ob) { ob.set('fill', inp.value); canvas.requestRenderAll(); queueMug(); } };
+    l.className = 'pecarow';
+    const cor = o && typeof o.fill === 'string' ? o.fill : (o && typeof o.stroke === 'string' ? o.stroke : state.color);
+    l.innerHTML = `<input type="checkbox" ${alvoOff.has(p.id) ? '' : 'checked'} title="Recebe estampa"><span>${p.label}</span><input type="color" value="${toHex(cor)}">`;
+    const ck = l.querySelector('input[type=checkbox]');
+    ck.onchange = () => { if (ck.checked) alvoOff.delete(p.id); else alvoOff.add(p.id); };
+    const inp = l.querySelector('input[type=color]');
+    inp.oninput = () => { const ob = pecaObjs().find((x) => x.data.peca === p.id); if (ob) { ob.set({ fill: inp.value, stroke: inp.value }); canvas.requestRenderAll(); queueMug(); } };
     inp.onchange = () => saveHistory();
     box.appendChild(l);
   });
@@ -197,16 +204,22 @@ function drawMoldeGuides() {
   svg.style.display = m ? 'block' : 'none';
   if (!m) return;
   svg.setAttribute('viewBox', `0 0 ${m.sheet.w} ${m.sheet.h}`);
+  const g = document.body.classList.contains('garment');
   svg.innerHTML = m.pecas.map((p) => {
-    const cx = p.outline.reduce((a, q) => a + q[0], 0) / p.outline.length;
-    const cy = p.outline.reduce((a, q) => a + q[1], 0) / p.outline.length;
-    return `<polygon points="${p.outline.map((q) => q.join(',')).join(' ')}"></polygon>` +
-      `<text x="${cx}" y="${cy}" font-size="2.2" style="font-size:2.2px">${p.label} · ${fmtCm(p.w)}×${fmtCm(p.h)}</text>`;
+    const xs = p.outline.map((q) => q[0]), ys = p.outline.map((q) => q[1]);
+    const cx = (Math.min(...xs) + Math.max(...xs)) / 2, top = Math.min(...ys);
+    const fs = g ? 1.55 : 2.2;
+    const t1 = `<text x="${cx}" y="${top - fs * 1.15}" style="font-size:${fs}px;font-weight:600">${esc(p.label)}</text>`;
+    const t2 = `<text x="${cx}" y="${top - 0.35}" style="font-size:${fs * 0.8}px;font-weight:400;opacity:.7">${fmtCm(p.w)} × ${fmtCm(p.h)} cm · corte 1</text>`;
+    return `<polygon points="${p.outline.map((q) => q.join(',')).join(' ')}"></polygon>` + t1 + t2;
   }).join('');
 }
 async function loadMoldes() {
   await Promise.all(Object.values(PRODUCTS).filter((p) => p.molde).map(async (p) => {
-    try { MOLDES[p.model] = await (await fetch(`modelos/${p.model}-molde.json`)).json(); } catch (e) { console.error('molde', p.model, e); }
+    try {
+      MOLDES[p.model] = await (await fetch(`modelos/${p.model}-molde.json`, { cache: 'no-store' })).json();
+      p.sizes.forEach((s) => { s.w = MOLDES[p.model].sheet.w; s.h = MOLDES[p.model].sheet.h; });
+    } catch (e) { console.error('molde', p.model, e); }
   }));
 }
 
@@ -325,8 +338,21 @@ showEmojis('Rostos');
 /* ---------- fundos prontos ---------- */
 let fundoId = null;
 function fundoObj() { return canvas.getObjects().find((o) => o.data && o.data.kind === 'fundo') || null; }
+const alvoOff = new Set(); // peças que NÃO recebem estampa de fundo
 function setFundo(id, quiet) {
   const def = FUNDOS.find((f) => f.id === id);
+  if (moldeAtual()) {
+    pecaObjs().filter((o) => !alvoOff.has(o.data.peca)).forEach((o) => {
+      if (!def) { o.set({ fill: state.color, stroke: state.color }); return; }
+      const fill = def.type === 'cor' ? def.c
+        : def.type === 'grad' ? new fabric.Gradient({ type: 'linear', gradientUnits: 'percentage', coords: { x1: 0, y1: 0, x2: 1, y2: 1 }, colorStops: [{ offset: 0, color: def.stops[0] }, { offset: 1, color: def.stops[1] }] })
+        : new fabric.Pattern({ source: fundoTile(def, 90 * unit()), repeat: 'repeat' });
+      o.set({ fill, stroke: def.type === 'cor' ? def.c : def.type === 'grad' ? def.stops[0] : def.bg });
+    });
+    canvas.requestRenderAll(); queueMug(); fillPecasUI();
+    if (!quiet) saveHistory();
+    return;
+  }
   const old = fundoObj();
   muted = true;
   if (old) canvas.remove(old);
@@ -423,7 +449,7 @@ function refreshProps() {
   if (isText) { $('pFont').value = o.fontFamily; $('pBold').checked = o.fontWeight === 'bold' || o.fontWeight === 700; }
   $('pOpacity').value = Math.round((o.opacity ?? 1) * 100);
 }
-function toHex(c) { if (!c) return '#000000'; if (c[0] === '#' && c.length === 7) return c; return '#' + new fabric.Color(c).toHex(); }
+function toHex(c) { if (!c || typeof c !== 'string') return '#ffffff'; if (c[0] === '#' && c.length === 7) return c; return '#' + new fabric.Color(c).toHex(); }
 canvas.on('selection:created', refreshProps);
 canvas.on('selection:updated', refreshProps);
 canvas.on('selection:cleared', refreshProps);
@@ -550,6 +576,7 @@ function projectData() {
     versao: 2, nome: $('projName').value.trim(),
     produto: state.pk, produtoNome: curP().name, tamanho: state.sid, tamanhoNome: sizeName(),
     custom: state.custom, cor: state.color, manual: manualData, canvas: JSON.parse(snapshot()),
+    look: typeof Garment !== 'undefined' ? Garment.getLook() : null,
   };
 }
 async function ensureProject() {
@@ -600,6 +627,7 @@ async function openProject(id) {
   state = { pk: PRODUCTS[p.produto] ? p.produto : 'caneca', sid: p.tamanho, color: p.cor || null, custom: p.custom || null };
   manualData = p.manual || {};
   $('clienteName').value = manualData.cliente || '';
+  if (p.look && typeof Garment !== 'undefined') Garment.setLook(p.look);
   fillProductUI(); applyProduct(false);
   await new Promise((res) => {
     muted = true;

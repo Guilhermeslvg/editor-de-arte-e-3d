@@ -2,7 +2,9 @@
 const Mock = (() => {
   let renderer, scene, camera, el, group = null, texture = null, texCanvas, tctx;
   let mode = 'full', views = [], elev = 0.28, cover = 0, swayBase = 0, swayAmp = 0.5, swayT = 0, transparent = false;
-  let dragging = false, lastX = 0, vel = 0;
+  let dragging = false, lastX = 0, lastY = 0, vel = 0, pitch = 0, zoomK = 1, isGlb = false;
+  const look = { ao: 1, normal: 0.6, luz: 1, rough: 0.92 };
+  let envTex = null, knitTex = null, aoCache = {};
   let shotRenderer = null;
 
   function init(container) {
@@ -13,11 +15,23 @@ const Mock = (() => {
     el.appendChild(renderer.domElement);
     scene = new THREE.Scene();
     camera = new THREE.PerspectiveCamera(28, 1, 0.1, 1000);
-    scene.add(new THREE.HemisphereLight(0xffffff, 0xbdb8b0, 0.85));
-    const key = new THREE.DirectionalLight(0xffffff, 0.75); key.position.set(3, 4, 5); scene.add(key);
-    const rim = new THREE.DirectionalLight(0xffffff, 0.3); rim.position.set(-4, 2, -3); scene.add(rim);
-    el.addEventListener('pointerdown', (e) => { dragging = true; lastX = e.clientX; vel = 0; el.setPointerCapture(e.pointerId); });
-    el.addEventListener('pointermove', (e) => { if (!dragging || !group) return; const dx = e.clientX - lastX; lastX = e.clientX; vel = dx * 0.01; group.rotation.y += vel; });
+    const hemi = new THREE.HemisphereLight(0xffffff, 0xbdb8b0, 0.85); hemi.userData.base = 0.85; hemi.userData.roupa = 0.35; scene.add(hemi);
+    const key = new THREE.DirectionalLight(0xffffff, 0.75); key.position.set(3, 4, 5); key.userData.base = 0.75; key.userData.roupa = 0.0; scene.add(key);
+    const lado = new THREE.DirectionalLight(0xfff4e8, 0); lado.position.set(-4, 3.5, 2.5); lado.userData.base = 0; lado.userData.roupa = 1.15; scene.add(lado);
+    const rim = new THREE.DirectionalLight(0xffffff, 0.3); rim.position.set(-4, 2, -3); rim.userData.base = 0.3; rim.userData.roupa = 0.35; scene.add(rim);
+    el.addEventListener('pointerdown', (e) => { dragging = true; lastX = e.clientX; lastY = e.clientY; vel = 0; el.setPointerCapture(e.pointerId); });
+    el.addEventListener('pointermove', (e) => {
+      if (!dragging || !group) return;
+      const dx = e.clientX - lastX, dy = e.clientY - lastY; lastX = e.clientX; lastY = e.clientY;
+      vel = dx * 0.01; group.rotation.y += vel;
+      if (isGlb && Math.abs(dy) > 0) { pitch = Math.max(-0.3, Math.min(0.7, pitch + dy * 0.004)); fit(camera); }
+    });
+    el.addEventListener('wheel', (e) => {
+      if (!group) return;
+      e.preventDefault();
+      zoomK = Math.max(0.4, Math.min(1.8, zoomK * Math.exp(e.deltaY * 0.0012)));
+      fit(camera);
+    }, { passive: false });
     const up = () => {
       if (!dragging) return; dragging = false;
       if (group && mode === 'sway') swayT = Math.asin(Math.max(-1, Math.min(1, (group.rotation.y - swayBase) / swayAmp)));
@@ -27,7 +41,7 @@ const Mock = (() => {
     requestAnimationFrame(loop);
   }
   function resize() {
-    const w = el.clientWidth, h = Math.round(w * 0.9);
+    const w = el.clientWidth, h = document.body.classList.contains('garment') && el.clientHeight > 50 ? el.clientHeight : Math.round(w * 0.9);
     renderer.setSize(w, h); camera.aspect = w / h; camera.updateProjectionMatrix();
     if (group) fit(camera);
   }
@@ -70,6 +84,74 @@ const Mock = (() => {
   }
   function shade(hex, k) { const c = new THREE.Color(hex); c.multiplyScalar(k); return '#' + c.getHexString(); }
 
+  /* ---------- realismo da roupa ---------- */
+  function ambiente() {
+    if (envTex) return envTex;
+    const pm = new THREE.PMREMGenerator(renderer);
+    const room = new THREE.Scene();
+    const box = new THREE.Mesh(new THREE.BoxGeometry(12, 8, 12), new THREE.MeshBasicMaterial({ color: 0x9a968e, side: THREE.BackSide }));
+    room.add(box);
+    const luz = (w, h, x, y, z, k) => { const m = new THREE.Mesh(new THREE.PlaneGeometry(w, h), new THREE.MeshBasicMaterial({ color: new THREE.Color(k, k, k * 0.97), side: THREE.DoubleSide })); m.position.set(x, y, z); m.lookAt(0, 0, 0); room.add(m); };
+    luz(6, 3, 0, 3.8, 2, 7); luz(3, 4, -5.5, 1, 2, 4); luz(3, 4, 5.5, 1.5, -1, 2.5); luz(4, 2, 0, 0.5, 5.8, 2);
+    envTex = pm.fromScene(room, 0.04).texture;
+    return envTex;
+  }
+  function malha() {
+    if (knitTex) return knitTex;
+    const N = 256, c = document.createElement('canvas'); c.width = c.height = N;
+    const x = c.getContext('2d'); x.fillStyle = '#000'; x.fillRect(0, 0, N, N);
+    const cw = 8, ch = 7;
+    for (let col = 0; col < N / cw; col++) for (let row = 0; row < N / ch + 1; row++) {
+      const cx = col * cw + cw / 2, cy = row * ch + (col % 2) * 0.5;
+      [-1, 1].forEach((sd) => {
+        const g = x.createRadialGradient(cx + sd * 1.8, cy, 0, cx + sd * 1.8, cy, 4.2);
+        g.addColorStop(0, 'rgba(255,255,255,.95)'); g.addColorStop(1, 'rgba(255,255,255,0)');
+        x.save(); x.translate(cx + sd * 1.8, cy); x.rotate(sd * 0.55); x.scale(0.55, 1.15); x.translate(-(cx + sd * 1.8), -cy);
+        x.fillStyle = g; x.beginPath(); x.arc(cx + sd * 1.8, cy, 4.2, 0, Math.PI * 2); x.fill(); x.restore();
+      });
+    }
+    const hgt = x.getImageData(0, 0, N, N).data, out = x.createImageData(N, N);
+    const H = (i, j) => hgt[(((j + N) % N) * N + ((i + N) % N)) * 4] / 255;
+    for (let j = 0; j < N; j++) for (let i = 0; i < N; i++) {
+      const dx = (H(i + 1, j) - H(i - 1, j)) * 2.2, dy = (H(i, j + 1) - H(i, j - 1)) * 2.2;
+      const l = Math.hypot(dx, dy, 1), k = (j * N + i) * 4;
+      out.data[k] = (-dx / l * 0.5 + 0.5) * 255; out.data[k + 1] = (dy / l * 0.5 + 0.5) * 255; out.data[k + 2] = (1 / l * 0.5 + 0.5) * 255; out.data[k + 3] = 255;
+    }
+    x.putImageData(out, 0, 0);
+    knitTex = new THREE.CanvasTexture(c); knitTex.wrapS = knitTex.wrapT = THREE.RepeatWrapping;
+    knitTex.anisotropy = renderer.capabilities.getMaxAnisotropy();
+    return knitTex;
+  }
+  function aoMapa(model) {
+    if (aoCache[model]) return aoCache[model];
+    const t = new THREE.TextureLoader().load(`modelos/${model}-ao.png`);
+    t.flipY = false; aoCache[model] = t; return t;
+  }
+  let roupaMats = [];
+  function roupaMat(P) {
+    const m = new THREE.MeshStandardMaterial({
+      map: texture, aoMap: aoMapa(P.model), aoMapIntensity: look.ao, normalMap: malha(), normalScale: new THREE.Vector2(look.normal, look.normal),
+      envMap: ambiente(), envMapIntensity: 0.85 * look.luz, roughness: look.rough, metalness: 0, side: THREE.DoubleSide,
+    });
+    const sheet = (typeof MOLDES !== 'undefined' && MOLDES[P.model]) ? MOLDES[P.model].sheet : { w: 120, h: 110 };
+    const rep = new THREE.Vector2(sheet.w / 3.2, sheet.h / 3.2);
+    m.onBeforeCompile = (sh) => {
+      sh.uniforms.knitRep = { value: rep };
+      const chunk = THREE.ShaderChunk.normal_fragment_maps.split('texture2D( normalMap, vUv )').join('texture2D( normalMap, vUv * knitRep )');
+      sh.fragmentShader = 'uniform vec2 knitRep;\n' + sh.fragmentShader.replace('#include <normal_fragment_maps>', chunk);
+    };
+    roupaMats.push(m);
+    return m;
+  }
+  function setLook(o) {
+    Object.assign(look, o);
+    roupaMats.forEach((m) => {
+      m.aoMapIntensity = look.ao; m.normalScale.set(look.normal, look.normal);
+      m.envMapIntensity = 0.85 * look.luz; m.roughness = look.rough;
+    });
+    if (scene) scene.children.forEach((c) => { if (c.isLight) c.intensity = (isGlb ? c.userData.roupa : c.userData.base) * (isGlb ? look.luz : 1); });
+  }
+
   /* ---------- modelos ---------- */
   const glbCache = {};
   const BUILD = {
@@ -77,7 +159,11 @@ const Mock = (() => {
       const g = new THREE.Group();
       const usar = (scene) => {
         const sc = scene.clone(true);
-        sc.traverse((o) => { if (o.isMesh) o.material = new THREE.MeshStandardMaterial({ map: texture, roughness: 0.9, metalness: 0, side: THREE.DoubleSide }); });
+        sc.traverse((o) => {
+          if (!o.isMesh) return;
+          o.geometry.setAttribute('uv2', o.geometry.attributes.uv);
+          o.material = roupaMat(P);
+        });
         g.add(sc);
         if (group === g) fit(camera);
       };
@@ -263,11 +349,12 @@ const Mock = (() => {
     group.rotation.y = saved; group.updateMatrixWorld(true);
     const s = box.getBoundingSphere(new THREE.Sphere());
     let center = s.center.clone(), radius = s.radius;
+    if (isGlb && cam === camera) center.y -= radius * 0.02;
     if (mode === 'full') { radius += Math.hypot(center.x, center.z); center.x = 0; center.z = 0; }
     const vfov = (cam.fov * Math.PI) / 180;
     const hfov = 2 * Math.atan(Math.tan(vfov / 2) * cam.aspect);
-    const dist = (radius * 1.04) / Math.sin(Math.min(vfov, hfov) / 2);
-    const dir = new THREE.Vector3(0, elev, 1).normalize();
+    const dist = ((radius * 1.04) / Math.sin(Math.min(vfov, hfov) / 2)) * (cam === camera ? zoomK : 1) * (isGlb && cam === camera ? 0.84 : 1);
+    const dir = new THREE.Vector3(0, elev + (cam === camera ? pitch : 0), 1).normalize();
     cam.position.copy(center).addScaledVector(dir, dist);
     cam.near = dist / 50; cam.far = dist * 20;
     cam.lookAt(center); cam.updateProjectionMatrix();
@@ -287,7 +374,13 @@ const Mock = (() => {
     texture = new THREE.CanvasTexture(texCanvas);
     texture.encoding = THREE.sRGBEncoding;
     texture.anisotropy = renderer.capabilities.getMaxAnisotropy();
-    if (P.mock === 'glb') texture.flipY = false;
+    isGlb = P.mock === 'glb';
+    if (isGlb) texture.flipY = false;
+    roupaMats = [];
+    renderer.toneMapping = isGlb ? THREE.ACESFilmicToneMapping : THREE.NoToneMapping;
+    renderer.toneMappingExposure = 1.05;
+    pitch = 0; zoomK = 1;
+    setLook({});
     const b = BUILD[P.mock](S, color, P);
     group = b.group; mode = b.spin || 'full'; views = b.views; elev = b.elev ?? 0.28; cover = b.cover ?? 0;
     swayAmp = b.amp ?? 0.5; swayBase = b.views[cover] ? b.views[cover][1] : 0; swayT = 0;
@@ -322,5 +415,11 @@ const Mock = (() => {
     group.rotation.y = saved;
     return out;
   }
-  return { init, set, update, shots, resize };
+  function view(v) {
+    if (!group) return;
+    const map = { frente: 0, costas: Math.PI, esq: Math.PI / 2, dir: -Math.PI / 2 };
+    if (v in map) { group.rotation.y = map[v]; vel = 0; swayT = 0; }
+    if (v === 'reset') { pitch = 0; zoomK = 1; group.rotation.y = 0; vel = 0; fit(camera); }
+  }
+  return { init, set, update, shots, resize, setLook, view, look };
 })();

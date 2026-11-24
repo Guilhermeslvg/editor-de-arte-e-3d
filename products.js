@@ -46,16 +46,18 @@ const PRODUCTS = {
     notes: () => (MOLDES.camiseta ? [['Peças (cm)', MOLDES.camiseta.pecas.map((p) => `${p.label} ${fmtCm(p.w)}×${fmtCm(p.h)}`).join(' · ')]] : []),
   },
   moletom: {
-    name: 'Moletom', title: 'Manual do moletom', na: 'no moletom', mock: 'hoodie', safe: 0, transparent: true,
-    modelo: 'Moletom canguru com capuz (referência tamanho M)',
-    colorLabel: 'Cor', colors: TECIDO,
-    sizes: [
-      { id: 'a4f', label: 'Frente A4 · 21 × 29,7 cm', w: 21, h: 29.7, side: 'front', top: 11 },
-      { id: 'peito', label: 'Peito · 10 × 10 cm', w: 10, h: 10, side: 'front', top: 11, x: 11 },
-      { id: 'a4c', label: 'Costas A4 · 21 × 29,7 cm', w: 21, h: 29.7, side: 'back', top: 10 },
-      { id: 'a3c', label: 'Costas A3 · 29,7 × 42 cm', w: 29.7, h: 42, side: 'back', top: 10 },
-    ],
-    notes: (S) => [['Posição', posicaoRoupa(S)]],
+    name: 'Moletom', title: 'Manual do moletom', na: 'no moletom', mock: 'glb', model: 'moletom', molde: true, safe: 0, transparent: true,
+    modelo: 'Moletom canguru com capuz (molde tamanho M)',
+    colorLabel: 'Cor do tecido', colors: TECIDO,
+    sizes: [{ id: 'molde-m', label: 'Molde completo · tamanho M', w: 160, h: 191 }],
+    notes: () => (MOLDES.moletom ? [['Peças (cm)', MOLDES.moletom.pecas.map((p) => `${p.label} ${fmtCm(p.w)}×${fmtCm(p.h)}`).join(' · ')]] : []),
+  },
+  sueter: {
+    name: 'Suéter', title: 'Manual do suéter', na: 'no suéter', mock: 'glb', model: 'sueter', molde: true, safe: 0, transparent: true,
+    modelo: 'Suéter gola careca em moletom (molde tamanho M)',
+    colorLabel: 'Cor do tecido', colors: TECIDO,
+    sizes: [{ id: 'molde-m', label: 'Molde completo · tamanho M', w: 140, h: 150 }],
+    notes: () => (MOLDES.sueter ? [['Peças (cm)', MOLDES.sueter.pecas.map((p) => `${p.label} ${fmtCm(p.w)}×${fmtCm(p.h)}`).join(' · ')]] : []),
   },
   almofada: {
     name: 'Almofada', title: 'Manual da almofada', na: 'na almofada', mock: 'pillow', safe: 15,

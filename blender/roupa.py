@@ -1,0 +1,470 @@
+# Fábrica de roupas 3D com molde de costura real.
+# Rodar (sem janela): Blender -b -P blender/roupa.py -- <camiseta|moletom> <pasta_saida>
+# Saída: <nome>.glb (UV = molde aberto), <nome>-molde.json, <nome>-ao.png (sombra de dobra), <nome>-preview.png
+import bpy, bmesh, json, math, os, sys
+from mathutils import Vector
+from mathutils.geometry import delaunay_2d_cdt
+from mathutils.kdtree import KDTree
+
+ARGS = sys.argv[sys.argv.index('--') + 1:] if '--' in sys.argv else []
+NOME = ARGS[0] if ARGS else 'camiseta'
+OUT = ARGS[1] if len(ARGS) > 1 else os.getcwd()
+os.makedirs(OUT, exist_ok=True)
+CM = 0.01
+
+# ---------------- utilidades 2D ----------------
+def bez(p0, c, p1, n=60):
+    return [((1-t)**2*p0[0] + 2*(1-t)*t*c[0] + t*t*p1[0], (1-t)**2*p0[1] + 2*(1-t)*t*c[1] + t*t*p1[1]) for t in (i/n for i in range(n+1))]
+def bez3(p0, c0, c1, p1, n=60):
+    out = []
+    for i in range(n+1):
+        t = i/n; u = 1-t
+        out.append((u**3*p0[0] + 3*u*u*t*c0[0] + 3*u*t*t*c1[0] + t**3*p1[0], u**3*p0[1] + 3*u*u*t*c0[1] + 3*u*t*t*c1[1] + t**3*p1[1]))
+    return out
+def line(a, b): return [a, b]
+def plen(pts): return sum(math.dist(pts[i], pts[i+1]) for i in range(len(pts)-1))
+def resample(pts, n):
+    L = plen(pts); seg = [math.dist(pts[i], pts[i+1]) for i in range(len(pts)-1)]
+    out = []; acc = 0; j = 0
+    for k in range(n+1):
+        d = L * k / n
+        while j < len(seg)-1 and acc + seg[j] < d: acc += seg[j]; j += 1
+        t = 0 if seg[j] == 0 else min(1, (d - acc) / seg[j])
+        out.append((pts[j][0] + (pts[j+1][0]-pts[j][0])*t, pts[j][1] + (pts[j+1][1]-pts[j][1])*t))
+    return out
+def split_curve(pts, frac):
+    L = plen(pts); acc = 0
+    for i in range(len(pts)-1):
+        d = math.dist(pts[i], pts[i+1])
+        if acc + d >= L * frac:
+            t = (L * frac - acc) / d if d else 0
+            m = (pts[i][0] + (pts[i+1][0]-pts[i][0])*t, pts[i][1] + (pts[i+1][1]-pts[i][1])*t)
+            return pts[:i+1] + [m], [m] + pts[i+1:]
+        acc += d
+    return pts, [pts[-1]]
+def mirror(segs): return [(n, [(-x, y) for x, y in pts]) for n, pts in segs]
+def inside(pt, poly):
+    x, y = pt; c = False
+    for i in range(len(poly)):
+        x1, y1 = poly[i]; x2, y2 = poly[(i+1) % len(poly)]
+        if (y1 > y) != (y2 > y) and x < (x2-x1)*(y-y1)/(y2-y1) + x1: c = not c
+    return c
+def dist_seg(p, a, b):
+    ax, ay = a; bx, by = b; px, py = p
+    dx, dy = bx-ax, by-ay; L2 = dx*dx + dy*dy
+    t = 0 if L2 == 0 else max(0, min(1, ((px-ax)*dx + (py-ay)*dy)/L2))
+    return math.hypot(px-(ax+t*dx), py-(ay+t*dy))
+
+# ---------------- peças base ----------------
+def tronco(W, L, shx, shy, nkx, nky, armx_low, army_low, arm_ctrl, neck_ctrl_y):
+    neckR, neckL = split_curve(bez((nkx, nky), (0, neck_ctrl_y), (-nkx, nky)), 0.5)
+    return [
+        ('hem',   line((-W, 0), (W, 0))),
+        ('sideR', line((W, 0), (W, army_low))),
+        ('armR',  bez((W, army_low), arm_ctrl, (shx, shy))),
+        ('shR',   line((shx, shy), (nkx, nky))),
+        ('neckR', neckR),
+        ('neckL', neckL),
+        ('shL',   line((-nkx, nky), (-shx, shy))),
+        ('armL',  bez((-shx, shy), (-arm_ctrl[0], arm_ctrl[1]), (-W, army_low))),
+        ('sideL', line((-W, army_low), (-W, 0))),
+    ]
+def manga(hem_w, under_x, under_y, cap_y, c0, c1):
+    return [
+        ('hem',    line((-hem_w, 0), (hem_w, 0))),
+        ('underR', line((hem_w, 0), (under_x, under_y))),
+        ('capR',   bez3((under_x, under_y), c0, c1, (0, cap_y))),
+        ('capL',   bez3((0, cap_y), (-c1[0], c1[1]), (-c0[0], c0[1]), (-under_x, under_y))),
+        ('underL', line((-under_x, under_y), (-hem_w, 0))),
+    ]
+def tira(Lx, Hy, topo_dividido=False):
+    segs = [('baixo', line((-Lx/2, 0), (Lx/2, 0))), ('ladoD', line((Lx/2, 0), (Lx/2, Hy)))]
+    if topo_dividido: segs += [('topoA', line((Lx/2, Hy), (0, Hy))), ('topoB', line((0, Hy), (-Lx/2, Hy)))]
+    else: segs += [('topo', line((Lx/2, Hy), (-Lx/2, Hy)))]
+    segs += [('ladoE', line((-Lx/2, Hy), (-Lx/2, 0)))]
+    return segs
+def seg_len(segs, n): return plen(dict(segs)[n])
+
+# ---------------- receitas ----------------
+G = {}
+if NOME == 'camiseta':
+    # camiseta oversized, ombro caído
+    FR = tronco(29, 72, 27, 69, 9, 73, 29, 45, (27.6, 56), 59)
+    BK = tronco(29, 72, 27, 69, 9, 73, 29, 45, (27.6, 56), 70)
+    SL = manga(23, 23.5, 9, 17.5, (15, 12.5), (7, 17.5))
+    neck_len = seg_len(FR, 'neckR') + seg_len(FR, 'neckL') + seg_len(BK, 'neckR') + seg_len(BK, 'neckL')
+    GL = round(neck_len * 0.92, 1)
+    G = {
+        'label': 'Camiseta oversized', 'z0': 0.80, 'arm_deg': 55, 'arm_len': 0.32, 'bend': 0.16, 'corpo': 1.14,
+        'pieces': {
+            'frente': {'label': 'Frente', 'segs': FR, 'place': ('torso', 'F')},
+            'costas': {'label': 'Costas', 'segs': BK, 'place': ('torso', 'B')},
+            'mangaE': {'label': 'Manga esquerda', 'segs': SL, 'place': ('sleeve', 1)},
+            'mangaD': {'label': 'Manga direita', 'segs': SL, 'place': ('sleeve', -1)},
+            'gola':   {'label': 'Gola (ribana)', 'segs': [
+                ('baseF', line((-GL/2, 0), (0, 0))), ('baseB', line((0, 0), (GL/2, 0))),
+                ('ladoD', line((GL/2, 0), (GL/2, 2.4))), ('topo', line((GL/2, 2.4), (-GL/2, 2.4))),
+                ('ladoE', line((-GL/2, 2.4), (-GL/2, 0)))], 'place': ('collar',)},
+        },
+        'seams': [
+            (('frente', 'sideR', 0), ('costas', 'sideL', 1)), (('frente', 'sideL', 1), ('costas', 'sideR', 0)),
+            (('frente', 'shR', 0), ('costas', 'shL', 1)), (('frente', 'shL', 0), ('costas', 'shR', 1)),
+            (('frente', 'armR', 0), ('mangaE', 'capR', 0)), (('costas', 'armL', 1), ('mangaE', 'capL', 1)),
+            (('frente', 'armL', 1), ('mangaD', 'capR', 0)), (('costas', 'armR', 0), ('mangaD', 'capL', 1)),
+            (('mangaE', 'underR', 0), ('mangaE', 'underL', 1)), (('mangaD', 'underR', 0), ('mangaD', 'underL', 1)),
+            (('gola', 'baseF', 0), ('frente', 'neckR', 0, 'neckL')), (('gola', 'baseB', 0), ('costas', 'neckR', 0, 'neckL')),
+            (('gola', 'ladoD', 0), ('gola', 'ladoE', 1)),
+        ],
+        'tacks': [],
+    }
+elif NOME == 'moletom':
+    FR = tronco(28, 64, 25, 60, 9.5, 63.5, 28, 40, (25.5, 48), 52)
+    BK = tronco(28, 64, 25, 60, 9.5, 63.5, 28, 40, (25.5, 48), 61.5)
+    SL = manga(13, 23, 44, 56, (15, 49), (7, 56))
+    BAND = round((56 + 56) * 0.9, 1)
+    CUFF = 22
+    HOOD = [
+        ('baseF', bez((0, 0), (7, -1.2), (13, -0.5))),
+        ('baseB', bez((13, -0.5), (19, 0.2), (25, 3))),
+        ('costura', bez3((25, 3), (31, 16), (28, 33), (13, 38))),
+        ('topo', bez((13, 38), (6, 38.5), (0, 36))),
+        ('rosto', bez((0, 36), (1.5, 18), (0, 0))),
+    ]
+    POCKET = [
+        ('baixo', line((-20, 0), (20, 0))),
+        ('abreD', bez((20, 0), (19.5, 11), (14, 19))),
+        ('topo', line((14, 19), (-14, 19))),
+        ('abreE', bez((-14, 19), (-19.5, 11), (-20, 0))),
+    ]
+    G = {
+        'label': 'Moletom canguru', 'z0': 0.86, 'arm_deg': 62, 'arm_len': 0.62, 'bend': 0.2, 'corpo': 1.12,
+        'pieces': {
+            'frente': {'label': 'Frente', 'segs': FR, 'place': ('torso', 'F')},
+            'costas': {'label': 'Costas', 'segs': BK, 'place': ('torso', 'B')},
+            'mangaE': {'label': 'Manga esquerda', 'segs': SL, 'place': ('sleeve', 1)},
+            'mangaD': {'label': 'Manga direita', 'segs': SL, 'place': ('sleeve', -1)},
+            'capuzE': {'label': 'Capuz esquerdo', 'segs': HOOD, 'place': ('hood', 1)},
+            'capuzD': {'label': 'Capuz direito', 'segs': mirror(HOOD), 'place': ('hood', -1)},
+            'bolso':  {'label': 'Bolso canguru', 'segs': POCKET, 'place': ('pocket', 3.0)},
+            'punhoE': {'label': 'Punho esquerdo', 'segs': tira(CUFF, 7), 'place': ('cuff', 1)},
+            'punhoD': {'label': 'Punho direito', 'segs': tira(CUFF, 7), 'place': ('cuff', -1)},
+            'barra':  {'label': 'Barra', 'segs': tira(BAND, 7, True), 'place': ('band',)},
+        },
+        'seams': [
+            (('frente', 'sideR', 0), ('costas', 'sideL', 1)), (('frente', 'sideL', 1), ('costas', 'sideR', 0)),
+            (('frente', 'shR', 0), ('costas', 'shL', 1)), (('frente', 'shL', 0), ('costas', 'shR', 1)),
+            (('frente', 'armR', 0), ('mangaE', 'capR', 0)), (('costas', 'armL', 1), ('mangaE', 'capL', 1)),
+            (('frente', 'armL', 1), ('mangaD', 'capR', 0)), (('costas', 'armR', 0), ('mangaD', 'capL', 1)),
+            (('mangaE', 'underR', 0), ('mangaE', 'underL', 1)), (('mangaD', 'underR', 0), ('mangaD', 'underL', 1)),
+            # capuz: esquerdo = metade "R" da frente (+x do molde) e metade "L" das costas
+            (('capuzE', 'baseF', 0), ('frente', 'neckR', 1)), (('capuzE', 'baseB', 0), ('costas', 'neckL', 1)),
+            (('capuzD', 'baseF', 0), ('frente', 'neckL', 0)), (('capuzD', 'baseB', 0), ('costas', 'neckR', 0)),
+            (('capuzE', 'costura', 0), ('capuzD', 'costura', 0)), (('capuzE', 'topo', 0), ('capuzD', 'topo', 0)),
+            # punhos e barra
+            (('punhoE', 'topo', 1), ('mangaE', 'hem', 0)), (('punhoD', 'topo', 1), ('mangaD', 'hem', 0)),
+            (('punhoE', 'ladoD', 0), ('punhoE', 'ladoE', 1)), (('punhoD', 'ladoD', 0), ('punhoD', 'ladoE', 1)),
+            (('barra', 'topoA', 1), ('frente', 'hem', 0)), (('barra', 'topoB', 1), ('costas', 'hem', 0)),
+            (('barra', 'ladoD', 0), ('barra', 'ladoE', 1)),
+        ],
+        'tacks': [('bolso', 'baixo', 'frente'), ('bolso', 'topo', 'frente')],
+    }
+elif NOME == 'sueter':
+    FR = tronco(28, 64, 25, 60, 9, 63.5, 28, 40, (25.5, 48), 57)
+    BK = tronco(28, 64, 25, 60, 9, 63.5, 28, 40, (25.5, 48), 62)
+    SL = manga(13, 23, 44, 56, (15, 49), (7, 56))
+    BAND = round((56 + 56) * 0.9, 1); CUFF = 22
+    neck_len = seg_len(FR, 'neckR') + seg_len(FR, 'neckL') + seg_len(BK, 'neckR') + seg_len(BK, 'neckL')
+    GL = round(neck_len * 0.9, 1)
+    G = {
+        'label': 'Suéter gola careca', 'z0': 0.86, 'arm_deg': 62, 'arm_len': 0.62, 'bend': 0.2, 'corpo': 1.12,
+        'pieces': {
+            'frente': {'label': 'Frente', 'segs': FR, 'place': ('torso', 'F')},
+            'costas': {'label': 'Costas', 'segs': BK, 'place': ('torso', 'B')},
+            'mangaE': {'label': 'Manga esquerda', 'segs': SL, 'place': ('sleeve', 1)},
+            'mangaD': {'label': 'Manga direita', 'segs': SL, 'place': ('sleeve', -1)},
+            'gola':   {'label': 'Gola (ribana)', 'segs': [
+                ('baseF', line((-GL/2, 0), (0, 0))), ('baseB', line((0, 0), (GL/2, 0))),
+                ('ladoD', line((GL/2, 0), (GL/2, 3.2))), ('topo', line((GL/2, 3.2), (-GL/2, 3.2))),
+                ('ladoE', line((-GL/2, 3.2), (-GL/2, 0)))], 'place': ('collar',)},
+            'punhoE': {'label': 'Punho esquerdo', 'segs': tira(CUFF, 7), 'place': ('cuff', 1)},
+            'punhoD': {'label': 'Punho direito', 'segs': tira(CUFF, 7), 'place': ('cuff', -1)},
+            'barra':  {'label': 'Barra', 'segs': tira(BAND, 7, True), 'place': ('band',)},
+        },
+        'seams': [
+            (('frente', 'sideR', 0), ('costas', 'sideL', 1)), (('frente', 'sideL', 1), ('costas', 'sideR', 0)),
+            (('frente', 'shR', 0), ('costas', 'shL', 1)), (('frente', 'shL', 0), ('costas', 'shR', 1)),
+            (('frente', 'armR', 0), ('mangaE', 'capR', 0)), (('costas', 'armL', 1), ('mangaE', 'capL', 1)),
+            (('frente', 'armL', 1), ('mangaD', 'capR', 0)), (('costas', 'armR', 0), ('mangaD', 'capL', 1)),
+            (('mangaE', 'underR', 0), ('mangaE', 'underL', 1)), (('mangaD', 'underR', 0), ('mangaD', 'underL', 1)),
+            (('gola', 'baseF', 0), ('frente', 'neckR', 0, 'neckL')), (('gola', 'baseB', 0), ('costas', 'neckR', 0, 'neckL')),
+            (('gola', 'ladoD', 0), ('gola', 'ladoE', 1)),
+            (('punhoE', 'topo', 1), ('mangaE', 'hem', 0)), (('punhoD', 'topo', 1), ('mangaD', 'hem', 0)),
+            (('punhoE', 'ladoD', 0), ('punhoE', 'ladoE', 1)), (('punhoD', 'ladoD', 0), ('punhoD', 'ladoE', 1)),
+            (('barra', 'topoA', 1), ('frente', 'hem', 0)), (('barra', 'topoB', 1), ('costas', 'hem', 0)),
+            (('barra', 'ladoD', 0), ('barra', 'ladoE', 1)),
+        ],
+        'tacks': [],
+    }
+P = G['pieces']
+STEP = 1.25
+
+# costuras com o mesmo número de pontos dos dois lados (segmentos compostos: 4º item = segmento seguinte)
+def side_pts(spec):
+    pname, s1 = spec[0], spec[1]
+    segs = dict(P[pname]['segs'])
+    pts = list(segs[s1])
+    if len(spec) > 3: pts = pts + list(segs[spec[3]])[1:]
+    return pts
+NSEG = {}
+def key(spec): return (spec[0], spec[1])
+for _ in range(3):
+    for a, b in G['seams']:
+        la, lb = plen(side_pts(a)), plen(side_pts(b))
+        n = max(2, round(max(la, lb) / STEP), NSEG.get(key(a), 0), NSEG.get(key(b), 0))
+        NSEG[key(a)] = NSEG[key(b)] = n
+
+# ---------------- empacota as peças numa folha ----------------
+GAP = 5; SHEET_W = {'moletom': 160, 'sueter': 140}.get(NOME, 132)
+boxes = []
+for pname, pc in P.items():
+    xs = [x for _, pts in pc['segs'] for x, _ in pts]; ys = [y for _, pts in pc['segs'] for _, y in pts]
+    boxes.append((pname, min(xs), min(ys), max(xs) - min(xs), max(ys) - min(ys)))
+boxes.sort(key=lambda b: -b[4])
+cx, cy, row_h = GAP, GAP, 0
+for pname, mx, my, w, h in boxes:
+    if cx + w + GAP > SHEET_W: cx = GAP; cy += row_h + GAP; row_h = 0
+    P[pname]['sheet'] = (cx - mx, cy - my)
+    cx += w + GAP; row_h = max(row_h, h)
+SHEET_H = math.ceil(cy + row_h + GAP)
+
+# ---------------- posições iniciais (Blender: z pra cima, frente = -y) ----------------
+Z0 = G['z0']
+FW = max(x for _, pts in P['frente']['segs'] for x, _ in pts)
+CIRC_REST = 4 * FW * CM
+_A, _B = 0.19, 0.135
+_T = [i * 2 * math.pi / 4000 for i in range(4001)]
+_P = [(_A * math.sin(t), -_B * math.cos(t)) for t in _T]
+_S = [0.0]
+for i in range(1, len(_P)): _S.append(_S[-1] + math.dist(_P[i-1], _P[i]))
+_K = CIRC_REST / _S[-1]
+_P = [(px * _K, py * _K) for px, py in _P]; _S = [v * _K for v in _S]; CIRC = _S[-1]
+def elipse_em(arc):
+    arc %= CIRC
+    lo, hi = 0, len(_S) - 1
+    while hi - lo > 1:
+        m = (lo + hi) // 2
+        if _S[m] < arc: lo = m
+        else: hi = m
+    t = 0 if _S[hi] == _S[lo] else (arc - _S[lo]) / (_S[hi] - _S[lo])
+    return (_P[lo][0] + (_P[hi][0] - _P[lo][0]) * t, _P[lo][1] + (_P[hi][1] - _P[lo][1]) * t)
+def torso_pos(fb, x, y, out=0.0):
+    z = Z0 + y * CM
+    px, py = elipse_em(x * CM) if fb == 'F' else elipse_em(CIRC / 2 + x * CM)
+    if out:
+        n = Vector((px, py)).normalized(); px += n.x * out; py += n.y * out
+    return Vector((px, py, z))
+SH, SHZ = 0.16, Z0 + 0.60
+ARM = math.radians(G['arm_deg'])
+def arm_frame(s):
+    a = Vector((s * math.cos(ARM), 0, -math.sin(ARM)))
+    u = Vector((s * math.sin(ARM), 0, math.cos(ARM)))
+    return Vector((s * SH, 0, SHZ)), a, u, Vector((0, -1, 0))
+SLW = max(x for _, pts in P['mangaE']['segs'] for x, _ in pts) * 2
+SLH = max(y for _, pts in P['mangaE']['segs'] for _, y in pts)
+RS = (SLW * CM) / (2 * math.pi)
+def sleeve_pos(s, x, y):
+    o, a, u, f = arm_frame(s)
+    th = (x * CM) / RS
+    t = 0.08 + (SLH - y) * CM
+    return o + a * t + (u * math.cos(th) + f * math.sin(th)) * RS
+def place(pc, x, y):
+    kind = pc['place']
+    if kind[0] == 'torso': return torso_pos(kind[1], x, y)
+    if kind[0] == 'sleeve': return sleeve_pos(kind[1], x, y)
+    if kind[0] == 'collar':
+        L = max(px for _, pts in pc['segs'] for px, _ in pts) * 2
+        psi = -((x + L/2) / L) * 2 * math.pi; rr = (L * CM) / (2 * math.pi)
+        fmin = min(py for _, pts in P['frente']['segs'] if _ .startswith('neck') for _, py in pts)
+        bmin = min(py for _, pts in P['costas']['segs'] if _ .startswith('neck') for _, py in pts)
+        nz = Z0 + (fmin + bmin) / 2 * CM; amp = (bmin - fmin) / 2 * CM
+        return Vector((rr * math.cos(psi), rr * math.sin(psi), nz + amp * math.sin(psi) + y * CM))
+    if kind[0] == 'hood':
+        s = kind[1]; u = x if s > 0 else -x
+        return Vector((s * 0.125, -0.10 + u * CM, Z0 + 0.62 + y * CM))
+    if kind[0] == 'pocket':
+        return torso_pos('F', x, y + kind[1], out=0.012)
+    if kind[0] == 'cuff':
+        s = kind[1]; o, a, uu, f = arm_frame(s)
+        L = max(px for _, pts in pc['segs'] for px, _ in pts) * 2; rr = (L * CM) / (2 * math.pi)
+        th = (x / (L/2)) * math.pi
+        t = 0.08 + SLH * CM + (7 - y) * CM
+        return o + a * t + (uu * math.cos(th) + f * math.sin(th)) * rr
+    if kind[0] == 'band':
+        L = max(px for _, pts in pc['segs'] for px, _ in pts) * 2; rr = (L * CM) / (2 * math.pi)
+        psi = math.pi + (x / (L/2)) * math.pi
+        return Vector((rr * 1.02 * math.cos(psi), rr * 0.75 * math.sin(psi), Z0 - (7 - y) * CM))
+    raise ValueError(kind)
+
+# ---------------- malha ----------------
+verts3, uvs, faces, flat_of = [], [], [], []
+seg_idx, molde, piece_verts = {}, [], {}
+for pname, pc in P.items():
+    boundary, bidx = [], {}
+    names = [s for s, _ in pc['segs']]
+    for sname, pts in pc['segs']:
+        n = NSEG.get((pname, sname), max(2, round(plen(pts) / STEP)))
+        rs = resample(pts, n)
+        st = len(boundary); boundary.extend(rs[:-1])
+        bidx[sname] = list(range(st, st + n)) + [None]
+    for i, s in enumerate(names): bidx[s][-1] = bidx[names[(i+1) % len(names)]][0]
+    nb = len(boundary)
+    xs = [p[0] for p in boundary]; ys = [p[1] for p in boundary]
+    pts2 = list(boundary); gx = min(xs); row = 0
+    while gx <= max(xs):
+        gy = min(ys) + (STEP * 0.433 if row % 2 else 0)
+        while gy <= max(ys):
+            q = (gx, gy)
+            if inside(q, boundary) and min(dist_seg(q, boundary[i], boundary[(i+1) % nb]) for i in range(nb)) > STEP * 0.55: pts2.append(q)
+            gy += STEP * 0.866
+        gx += STEP * 0.5; row += 1
+    vout, _, fout, orig_v, _, _ = delaunay_2d_cdt([Vector(p) for p in pts2], [], [list(range(nb))], 1, 1e-5)
+    base = len(verts3); lm = {}; piece_verts[pname] = []
+    ox, oy = pc['sheet']
+    for oi, ov in enumerate(vout):
+        verts3.append(place(pc, ov.x, ov.y)); flat_of.append((pname, ov.x, ov.y))
+        uvs.append(((ov.x + ox) / SHEET_W, (ov.y + oy) / SHEET_H))
+        piece_verts[pname].append(base + oi)
+        for o in orig_v[oi]:
+            if o < nb: lm[o] = base + oi
+    for f in fout: faces.append([base + i for i in f])
+    for s, l in bidx.items(): seg_idx[(pname, s)] = [lm[i] for i in l]
+    molde.append({'id': pname, 'label': pc['label'],
+                  'outline': [(round(p[0] + ox, 2), round(SHEET_H - (p[1] + oy), 2)) for p in boundary],
+                  'w': round(max(xs) - min(xs), 1), 'h': round(max(ys) - min(ys), 1)})
+
+def side_idx(spec):
+    l = list(seg_idx[(spec[0], spec[1])])
+    if len(spec) > 3: l = l + seg_idx[(spec[0], spec[3])][1:]
+    return list(reversed(l)) if spec[2] else l
+sew = []
+for a, b in G['seams']:
+    ia, ib = side_idx(a), side_idx(b)
+    if len(ia) != len(ib):
+        n = min(len(ia), len(ib))
+        ia = [ia[round(i * (len(ia)-1) / (n-1))] for i in range(n)]; ib = [ib[round(i * (len(ib)-1) / (n-1))] for i in range(n)]
+    for i, j in zip(ia, ib):
+        if i != j: sew.append((i, j))
+tacks = []
+for pname, sname, onto in G['tacks']:
+    kd = KDTree(len(piece_verts[onto]))
+    for k, vi in enumerate(piece_verts[onto]): kd.insert((flat_of[vi][1], flat_of[vi][2], 0), k)
+    kd.balance()
+    dy = P[pname]['place'][1]
+    for vi in seg_idx[(pname, sname)]:
+        _, x, y = flat_of[vi]
+        _, k, d = kd.find((x, y + dy, 0))
+        if d < STEP: tacks.append((vi, piece_verts[onto][k]))
+print('malha', len(verts3), 'verts', len(faces), 'tris', len(sew), 'costuras', len(tacks), 'pontos do bolso', flush=True)
+
+# ---------------- cena ----------------
+bpy.ops.wm.read_factory_settings(use_empty=True)
+scn = bpy.context.scene
+me = bpy.data.meshes.new(NOME)
+me.from_pydata([tuple(v) for v in verts3], sew + tacks, faces)
+me.update()
+uvl = me.uv_layers.new(name='molde')
+for poly in me.polygons:
+    for li in poly.loop_indices: uvl.data[li].uv = uvs[me.loops[li].vertex_index]
+ob = bpy.data.objects.new(NOME, me); scn.collection.objects.link(ob)
+
+def ellipsoid(name, loc, scale, rot=(0, 0, 0)):
+    bpy.ops.mesh.primitive_uv_sphere_add(segments=32, ring_count=16, location=loc, rotation=rot)
+    o = bpy.context.active_object; o.name = name; o.scale = scale
+    o.modifiers.new('Col', 'COLLISION'); o.collision.thickness_outer = 0.006; o.collision.cloth_friction = 10
+    return o
+zc = Z0 - 0.80; K = G.get('corpo', 1.0)
+body = [
+    ellipsoid('peito', (0, 0, 1.30 + zc), (0.155 * K, 0.10 * K, 0.21)),
+    ellipsoid('quadril', (0, 0, 0.98 + zc), (0.15 * K, 0.10 * K, 0.26)),
+    ellipsoid('ombros', (0, 0, SHZ + 0.01), (0.175 * K, 0.08 * K, 0.055)),
+    ellipsoid('pescoco', (0, 0, Z0 + 0.76), (0.05, 0.05, 0.10)),
+]
+if NOME == 'moletom':
+    body.append(ellipsoid('cabeca', (0, 0.015, Z0 + 0.885), (0.082, 0.098, 0.112)))
+for s in (1, -1):
+    o, a, u, f = arm_frame(s)
+    c = o + a * (G['arm_len'] / 2 + 0.02)
+    ang = math.degrees(math.atan2(a.x, a.z))
+    body.append(ellipsoid('braco', tuple(c), (0.042, 0.042, G['arm_len'] / 2 + 0.03), (0, math.radians(ang), 0)))
+
+cl = ob.modifiers.new('Cloth', 'CLOTH'); cs = cl.settings
+cs.quality = 10; cs.mass = 0.2
+cs.tension_stiffness = 12; cs.compression_stiffness = 12; cs.shear_stiffness = 4; cs.bending_stiffness = G['bend']
+cs.air_damping = 1.5; cs.use_sewing_springs = True; cs.sewing_force_max = 6
+cc = cl.collision_settings
+cc.distance_min = 0.004; cc.use_self_collision = True; cc.self_distance_min = 0.003
+FRAMES = 200
+cl.point_cache.frame_start = 1; cl.point_cache.frame_end = FRAMES
+scn.frame_start = 1; scn.frame_end = FRAMES
+ew = cs.effector_weights
+ew.gravity = 0.0; ew.keyframe_insert(data_path='gravity', frame=1); ew.keyframe_insert(data_path='gravity', frame=70)
+ew.gravity = 1.0; ew.keyframe_insert(data_path='gravity', frame=110)
+for f in range(1, FRAMES + 1):
+    scn.frame_set(f)
+    if f % 50 == 0: print('frame', f, flush=True)
+
+dg = bpy.context.evaluated_depsgraph_get()
+final = bpy.data.meshes.new_from_object(ob.evaluated_get(dg)); final.name = NOME + '_final'
+res = bpy.data.objects.new(NOME.capitalize(), final); scn.collection.objects.link(res)
+bm = bmesh.new(); bm.from_mesh(final); bm.verts.ensure_lookup_table()
+alvo = {}
+def raiz(i):
+    while i in alvo: i = alvo[i]
+    return i
+for i, j in sew:
+    ri, rj = raiz(i), raiz(j)
+    if ri != rj: alvo[rj] = ri
+tm = {bm.verts[j]: bm.verts[raiz(j)] for j in alvo}
+for v, t in tm.items(): t.co = (v.co + t.co) / 2
+bmesh.ops.weld_verts(bm, targetmap=tm)
+bmesh.ops.delete(bm, geom=[e for e in bm.edges if not e.link_faces], context='EDGES')
+bmesh.ops.recalc_face_normals(bm, faces=bm.faces)
+bm.to_mesh(final); bm.free()
+for p in final.polygons: p.use_smooth = True
+bpy.data.objects.remove(ob, do_unlink=True)
+bpy.context.view_layer.update()
+sm = res.modifiers.new('Suave', 'SMOOTH'); sm.factor = 0.5; sm.iterations = 2
+mat = bpy.data.materials.new('estampa'); mat.use_nodes = True; final.materials.append(mat)
+
+# sombra de dobra (AO) assada no molde
+AO_W = 2048; AO_H = round(2048 * SHEET_H / SHEET_W)
+scn.render.engine = 'CYCLES'; scn.cycles.samples = 64; scn.cycles.device = 'CPU'
+img = bpy.data.images.new('ao', AO_W, AO_H, alpha=False)
+nodes = mat.node_tree.nodes; tex = nodes.new('ShaderNodeTexImage'); tex.image = img; nodes.active = tex
+for o in list(scn.objects):
+    if o is not None: o.select_set(False)
+res.select_set(True); bpy.context.view_layer.objects.active = res
+scn.render.bake.margin = 12
+bpy.ops.object.bake(type='AO')
+img.filepath_raw = os.path.join(OUT, NOME + '-ao.png'); img.file_format = 'PNG'; img.save()
+nodes.remove(tex)
+print('AO ok', flush=True)
+
+bpy.ops.export_scene.gltf(filepath=os.path.join(OUT, NOME + '.glb'), use_selection=True, export_apply=True,
+                          export_texcoords=True, export_normals=True, export_materials='PLACEHOLDER', export_yup=True)
+json.dump({'sheet': {'w': SHEET_W, 'h': SHEET_H}, 'pecas': molde, 'nome': G['label']},
+          open(os.path.join(OUT, NOME + '-molde.json'), 'w'), ensure_ascii=False)
+
+for o in body: o.hide_render = True
+bb = [res.matrix_world @ Vector(c) for c in res.bound_box]
+zmid = (min(v.z for v in bb) + max(v.z for v in bb)) / 2
+cam_data = bpy.data.cameras.new('cam'); cam = bpy.data.objects.new('cam', cam_data)
+scn.collection.objects.link(cam); scn.camera = cam
+cam.location = (0.45, -2.6, zmid + 0.15); cam.rotation_euler = (math.radians(87), 0, math.radians(10)); cam_data.lens = 70
+scn.render.engine = 'BLENDER_WORKBENCH'
+scn.display.shading.light = 'STUDIO'; scn.display.shading.color_type = 'SINGLE'
+scn.display.shading.single_color = (0.92, 0.92, 0.9); scn.display.shading.show_cavity = True
+scn.render.resolution_x = 700; scn.render.resolution_y = 900
+scn.render.filepath = os.path.join(OUT, NOME + '-preview.png')
+bpy.ops.render.render(write_still=True)
+print('OK', NOME, flush=True)
