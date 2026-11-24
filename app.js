@@ -15,7 +15,8 @@ function curS() {
 }
 const sizeTag = () => (curP().digital ? `${curS().w}x${curS().h}px` : `${fmtCm(curS().w)}x${fmtCm(curS().h)}cm`);
 const sizeName = () => (curP().digital ? `${curS().w} × ${curS().h} px` : `${fmtCm(curS().w)} × ${fmtCm(curS().h)} cm`);
-const unit = () => Math.min(W, H) / 1122;   // pra enfeites/textos nascerem num tamanho bom em qualquer produto
+// tamanho padrão de enfeites/textos: na roupa ~8 cm; nos outros, proporcional à arte
+const unit = () => (curP().molde && MOLDES[curP().model] ? ((W / MOLDES[curP().model].sheet.w) * 8) / 150 : Math.min(W, H) / 1122);   // pra enfeites/textos nascerem num tamanho bom em qualquer produto
 
 fabric.Object.prototype.set({
   transparentCorners: false, cornerColor: '#ffffff', cornerStrokeColor: '#c8312f',
@@ -80,7 +81,7 @@ function fillProductUI() {
   selP.value = state.pk;
   const sel = $('pSize'); sel.innerHTML = '';
   P.sizes.forEach((s) => sel.add(new Option(s.label, s.id)));
-  sel.add(new Option(state.custom && state.sid === 'custom' ? curS().label : 'Medida personalizada…', 'custom'));
+  if (!P.molde) sel.add(new Option(state.custom && state.sid === 'custom' ? curS().label : 'Medida personalizada…', 'custom'));
   sel.value = state.sid;
   $('customBox').hidden = state.sid !== 'custom';
   if (state.sid === 'custom') { $('customW').value = curS().w; $('customH').value = curS().h; }
@@ -93,7 +94,11 @@ function fillProductUI() {
       const b = document.createElement('button');
       b.title = name; b.style.background = hex;
       b.className = hex === state.color ? 'on' : '';
-      b.onclick = () => { state.color = hex; fillProductUI(); Mock.set(curP(), curS(), state.color, W, H); queueMug(true); markDirty(); };
+      b.onclick = () => {
+        state.color = hex; fillProductUI();
+        if (curP().molde) { pintarPecas(hex); saveHistory(); return; }
+        Mock.set(curP(), curS(), state.color, W, H); queueMug(true); markDirty();
+      };
       box.appendChild(b);
     });
   }
@@ -135,7 +140,7 @@ function applyProduct(rescale) {
     muted = true;
     canvas.getObjects().forEach((o) => {
       if (o === base) return coverBase(o);
-      if (o.data && o.data.kind === 'fundo') return;
+      if (o.data && (o.data.kind === 'fundo' || o.data.kind === 'peca')) return;
       const c = o.getCenterPoint();
       o.set({ scaleX: o.scaleX * k, scaleY: o.scaleY * k });
       o.setPositionByOrigin(new fabric.Point(c.x * kx, c.y * ky), 'center', 'center');
@@ -144,16 +149,73 @@ function applyProduct(rescale) {
     muted = false;
   }
   refitFundo();
+  ensurePecas();
   fit(); updateGuides(); updateInfo();
   Mock.set(P, S, state.color, W, H);
   queueMug(true);
   if (rescale) { resetHistory(); markDirty(); }
 }
+/* ---------- molde (peças de roupa) ---------- */
+const pecaObjs = () => canvas.getObjects().filter((o) => o.data && o.data.kind === 'peca');
+const bottomCount = () => pecaObjs().length + (canvas.getObjects().some((o) => o.data && o.data.kind === 'fundo') ? 1 : 0);
+function moldeAtual() { const P = curP(); return P.molde ? MOLDES[P.model] : null; }
+function ensurePecas() {
+  const m = moldeAtual();
+  muted = true;
+  if (!m) { pecaObjs().forEach((o) => canvas.remove(o)); muted = false; return; }
+  const k = W / m.sheet.w;
+  const have = new Set(pecaObjs().map((o) => o.data.peca));
+  m.pecas.forEach((p, i) => {
+    if (have.has(p.id)) return;
+    const poly = new fabric.Polygon(p.outline.map(([x, y]) => ({ x: x * k, y: y * k })), {
+      fill: state.color || '#f5f5f2', strokeWidth: 0, selectable: false, evented: false, objectCaching: false,
+      data: { kind: 'peca', peca: p.id },
+    });
+    canvas.insertAt(poly, i);
+  });
+  muted = false;
+  fillPecasUI();
+}
+function pintarPecas(color) { pecaObjs().forEach((o) => o.set('fill', color)); fillPecasUI(); canvas.requestRenderAll(); queueMug(); }
+function fillPecasUI() {
+  const m = moldeAtual(), box = $('pecasBox');
+  box.hidden = !m; box.innerHTML = '';
+  if (!m) return;
+  box.insertAdjacentHTML('beforeend', '<p class="tiny">Cor de cada peça</p>');
+  m.pecas.forEach((p) => {
+    const o = pecaObjs().find((x) => x.data.peca === p.id);
+    const l = document.createElement('label');
+    l.innerHTML = `<span>${p.label}</span><input type="color" value="${toHex(o ? o.fill : state.color)}">`;
+    const inp = l.querySelector('input');
+    inp.oninput = () => { const ob = pecaObjs().find((x) => x.data.peca === p.id); if (ob) { ob.set('fill', inp.value); canvas.requestRenderAll(); queueMug(); } };
+    inp.onchange = () => saveHistory();
+    box.appendChild(l);
+  });
+}
+function drawMoldeGuides() {
+  const m = moldeAtual(), svg = $('moldeSvg');
+  svg.style.display = m ? 'block' : 'none';
+  if (!m) return;
+  svg.setAttribute('viewBox', `0 0 ${m.sheet.w} ${m.sheet.h}`);
+  svg.innerHTML = m.pecas.map((p) => {
+    const cx = p.outline.reduce((a, q) => a + q[0], 0) / p.outline.length;
+    const cy = p.outline.reduce((a, q) => a + q[1], 0) / p.outline.length;
+    return `<polygon points="${p.outline.map((q) => q.join(',')).join(' ')}"></polygon>` +
+      `<text x="${cx}" y="${cy}" font-size="2.2" style="font-size:2.2px">${p.label} · ${fmtCm(p.w)}×${fmtCm(p.h)}</text>`;
+  }).join('');
+}
+async function loadMoldes() {
+  await Promise.all(Object.values(PRODUCTS).filter((p) => p.molde).map(async (p) => {
+    try { MOLDES[p.model] = await (await fetch(`modelos/${p.model}-molde.json`)).json(); } catch (e) { console.error('molde', p.model, e); }
+  }));
+}
+
 function updateGuides() {
   const P = curP(), S = curS();
   const px = ((P.safe / 10) / S.w) * 100, py = ((P.safe / 10) / S.h) * 100;
   Object.assign($('safeBox').style, { left: px + '%', right: px + '%', top: py + '%', bottom: py + '%', display: P.safe ? 'block' : 'none' });
   $('midLine').style.display = P.handle ? 'block' : 'none';
+  drawMoldeGuides();
   document.querySelectorAll('.guides .tag').forEach((t) => { t.style.display = P.handle ? 'block' : 'none'; });
 }
 function updateInfo() {
@@ -183,7 +245,7 @@ function setBase(url) {
     applyLock(img, $('lockBase').checked);
     muted = true;
     if (base) canvas.remove(base);
-    canvas.insertAt(img, fundoObj() ? 1 : 0);
+    canvas.insertAt(img, bottomCount());
     base = img;
     muted = false;
     canvas.requestRenderAll(); saveHistory();
@@ -222,6 +284,12 @@ function showStickers(cat) {
 showStickers('Natal');
 function nextPos() {
   const j = () => (Math.random() - 0.5) * 160 * unit();
+  const m = moldeAtual();
+  if (m) {
+    const p = m.pecas[0], k = W / m.sheet.w;
+    const cx = p.outline.reduce((a, q) => a + q[0], 0) / p.outline.length, cy = p.outline.reduce((a, q) => a + q[1], 0) / p.outline.length;
+    return { left: cx * k + j(), top: (cy - 8) * k + j() };
+  }
   return { left: W / 2 + j(), top: H / 2 + j() };
 }
 function stickerObject(key, color, cb) {
@@ -268,7 +336,7 @@ function setFundo(id, quiet) {
       left: 0, top: 0, originX: 'left', originY: 'top', width: W, height: H, strokeWidth: 0,
       fill: fundoFill(def, W, H, 90 * unit()), selectable: false, evented: false, data: { kind: 'fundo', id },
     });
-    canvas.insertAt(r, 0);
+    canvas.insertAt(r, pecaObjs().length);
     fundoId = id;
   }
   muted = false;
@@ -415,7 +483,7 @@ document.querySelectorAll('[data-act]').forEach((b) => b.onclick = () => {
   if (act === 'asbase') { const src = o.getSrc(); muted = true; canvas.remove(o); muted = false; canvas.discardActiveObject(); return setBase(src); }
   if (act === 'flip') o.set('flipX', !o.flipX);
   if (act === 'front') canvas.bringForward(o);
-  if (act === 'back' && canvas.getObjects().indexOf(o) > (base ? 1 : 0) + (fundoObj() ? 1 : 0)) canvas.sendBackwards(o);
+  if (act === 'back' && canvas.getObjects().indexOf(o) > (base ? 1 : 0) + bottomCount()) canvas.sendBackwards(o);
   canvas.requestRenderAll(); saveHistory();
 });
 
@@ -535,7 +603,7 @@ async function openProject(id) {
   fillProductUI(); applyProduct(false);
   await new Promise((res) => {
     muted = true;
-    canvas.loadFromJSON(p.canvas, () => { findBase(); const f = fundoObj(); fundoId = f ? f.data.id : null; markFundos(); muted = false; canvas.requestRenderAll(); res(); });
+    canvas.loadFromJSON(p.canvas, () => { findBase(); const f = fundoObj(); fundoId = f ? f.data.id : null; markFundos(); muted = false; ensurePecas(); canvas.requestRenderAll(); res(); });
   });
   resetHistory(); queueMug(true); refreshProps();
   loadingProject = false; dirty = false; clearTimeout(autosaveT);
@@ -632,6 +700,7 @@ $('projModal').addEventListener('click', (e) => { if (e.target.id === 'projModal
 Mock.init($('mug'));
 fillProductUI();
 (async () => {
+  await loadMoldes();
   let last = null;
   try { last = localStorage.getItem('editor-ultimo-projeto'); } catch (e) {}
   if (last) { try { await openProject(last); return; } catch (e) { console.warn(e); } }

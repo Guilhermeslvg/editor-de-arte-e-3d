@@ -1,3 +1,4 @@
+const MOLDES = {};
 // Produtos: medidas em cm. safe = margem de segurança em mm.
 const fmtCm = (n) => String(n).replace('.', ',');
 const TECIDO = [
@@ -38,17 +39,11 @@ const PRODUCTS = {
     notes: () => [['Moldura', 'Cobre uns 5 mm de cada lado: nada importante na borda']],
   },
   camiseta: {
-    name: 'Camiseta', title: 'Manual da camiseta', na: 'na camiseta', mock: 'shirt', safe: 0, transparent: true,
-    modelo: 'Camiseta algodão (referência tamanho M)',
-    colorLabel: 'Cor', colors: TECIDO,
-    sizes: [
-      { id: 'a4f', label: 'Frente A4 · 21 × 29,7 cm', w: 21, h: 29.7, side: 'front', top: 9 },
-      { id: 'a3f', label: 'Frente A3 · 29,7 × 42 cm', w: 29.7, h: 42, side: 'front', top: 9 },
-      { id: 'peito', label: 'Peito · 10 × 10 cm', w: 10, h: 10, side: 'front', top: 10, x: 11 },
-      { id: 'a4c', label: 'Costas A4 · 21 × 29,7 cm', w: 21, h: 29.7, side: 'back', top: 8 },
-      { id: 'a3c', label: 'Costas A3 · 29,7 × 42 cm', w: 29.7, h: 42, side: 'back', top: 8 },
-    ],
-    notes: (S) => [['Posição', posicaoRoupa(S)]],
+    name: 'Camiseta', title: 'Manual da camiseta', na: 'na camiseta', mock: 'glb', model: 'camiseta', molde: true, safe: 0, transparent: true,
+    modelo: 'Camiseta de malha (molde tamanho M)',
+    colorLabel: 'Cor do tecido', colors: TECIDO,
+    sizes: [{ id: 'molde-m', label: 'Molde completo · tamanho M', w: 112, h: 108 }],
+    notes: () => (MOLDES.camiseta ? [['Peças (cm)', MOLDES.camiseta.pecas.map((p) => `${p.label} ${fmtCm(p.w)}×${fmtCm(p.h)}`).join(' · ')]] : []),
   },
   moletom: {
     name: 'Moletom', title: 'Manual do moletom', na: 'no moletom', mock: 'hoodie', safe: 0, transparent: true,

@@ -71,7 +71,21 @@ const Mock = (() => {
   function shade(hex, k) { const c = new THREE.Color(hex); c.multiplyScalar(k); return '#' + c.getHexString(); }
 
   /* ---------- modelos ---------- */
+  const glbCache = {};
   const BUILD = {
+    glb(S, color, P) {
+      const g = new THREE.Group();
+      const usar = (scene) => {
+        const sc = scene.clone(true);
+        sc.traverse((o) => { if (o.isMesh) o.material = new THREE.MeshStandardMaterial({ map: texture, roughness: 0.9, metalness: 0, side: THREE.DoubleSide }); });
+        g.add(sc);
+        if (group === g) fit(camera);
+      };
+      if (glbCache[P.model]) usar(glbCache[P.model]);
+      else new THREE.GLTFLoader().load(`modelos/${P.model}.glb`, (gltf) => { glbCache[P.model] = gltf.scene; usar(gltf.scene); }, undefined, (e) => console.error('modelo 3D', e));
+      return { group: g, spin: 'full', elev: 0.08, start: -0.4, cover: 0, views: [['Frente', 0], ['Lado', -0.9], ['Costas', Math.PI]] };
+    },
+
     mug(S, color, P) {
       const g = new THREE.Group();
       const R = 4.1, HM = S.h, CIRC = Math.PI * 2 * R;
@@ -238,6 +252,7 @@ const Mock = (() => {
 
   /* ---------- câmera ---------- */
   function fit(cam) {
+    if (!group || !group.children.length) return;
     const saved = group.rotation.y; group.rotation.y = 0; group.updateMatrixWorld(true);
     const box = new THREE.Box3();
     group.traverse((o) => {
@@ -272,6 +287,7 @@ const Mock = (() => {
     texture = new THREE.CanvasTexture(texCanvas);
     texture.encoding = THREE.sRGBEncoding;
     texture.anisotropy = renderer.capabilities.getMaxAnisotropy();
+    if (P.mock === 'glb') texture.flipY = false;
     const b = BUILD[P.mock](S, color, P);
     group = b.group; mode = b.spin || 'full'; views = b.views; elev = b.elev ?? 0.28; cover = b.cover ?? 0;
     swayAmp = b.amp ?? 0.5; swayBase = b.views[cover] ? b.views[cover][1] : 0; swayT = 0;

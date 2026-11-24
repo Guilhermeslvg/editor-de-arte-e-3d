@@ -113,6 +113,12 @@
   .mhead .sp{flex:1}
   .card .cli{color:var(--accent);font-size:12px;font-weight:600}
   .wrap.dropping{outline:3px dashed var(--accent);outline-offset:6px}
+  .molde{position:absolute;inset:0;width:100%;height:100%;overflow:visible}
+  .molde polygon{fill:none;stroke:rgba(31,29,26,.55);stroke-width:1.2;stroke-dasharray:5 4;vector-effect:non-scaling-stroke}
+  .molde text{fill:rgba(31,29,26,.55);font:600 11px Inter,sans-serif;text-anchor:middle}
+  .pecas{display:grid;gap:4px;margin-top:8px}
+  .pecas label{display:grid;grid-template-columns:1fr 34px;align-items:center;font-size:12px;color:var(--muted)}
+  .pecas input[type=color]{width:34px;height:24px;padding:1px}
   .newcard{border-style:dashed;display:grid;place-items:center;min-height:240px;color:var(--muted);font-weight:500}
   .pempty{color:var(--muted);text-align:center;margin:40px 0}
   @media (max-width:1100px){main{grid-template-columns:210px 1fr 280px} #projName{width:150px}}
@@ -150,6 +156,7 @@
       <div id="colorBox" hidden>
         <p class="tiny" id="colorLabel">Cor</p>
         <div class="swatches" id="pColors"></div>
+        <div id="pecasBox" class="pecas" hidden></div>
       </div>
     </div>
     <h2>Adicionar</h2>
@@ -181,7 +188,7 @@
   <section class="stage" id="stage">
     <div class="wrap" id="wrap">
       <canvas id="c"></canvas>
-      <div class="guides" id="guides"><div class="safe" id="safeBox"></div><div class="mid" id="midLine"></div><span class="tag l">alça</span><span class="tag r">alça</span></div>
+      <div class="guides" id="guides"><svg id="moldeSvg" class="molde" preserveAspectRatio="none"></svg><div class="safe" id="safeBox"></div><div class="mid" id="midLine"></div><span class="tag l">alça</span><span class="tag r">alça</span></div>
     </div>
     <p class="hint">⌘V cola imagem · duplo clique no texto pra escrever · Delete apaga · ⌘Z desfaz · ⌘S salva · ⌘D duplica</p>
   </section>
@@ -245,6 +252,7 @@
 
 <script src="https://cdn.jsdelivr.net/npm/fabric@5.3.0/dist/fabric.min.js"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/loaders/GLTFLoader.js"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js"></script>
 <script src="products.js"></script>

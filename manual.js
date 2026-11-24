@@ -8,9 +8,7 @@
 
   // campos comuns ficam lembrados no navegador; o modelo é por produto; tudo também vai no projeto
   function defaults() {
-    let shared = {};
-    try { shared = JSON.parse(localStorage.getItem('editor-manual') || '{}'); } catch (e) {}
-    return { cliente: '', reconhecimento: '', qtd: '', obs: '', ...shared, modelo: curP().modelo };
+    return { cliente: '', reconhecimento: '', qtd: '', obs: '', modelo: curP().modelo };
   }
   function loadData() {
     const d = { ...defaults(), ...(manualData || {}) };
@@ -22,7 +20,6 @@
     const d = readForm();
     const modelos = { ...((manualData && manualData.modelos) || {}), [state.pk]: d.modelo };
     manualData = { ...d, produto: state.pk, modelos };
-    try { localStorage.setItem('editor-manual', JSON.stringify({ cliente: d.cliente, reconhecimento: d.reconhecimento })); } catch (e) {}
     if ($('clienteName')) $('clienteName').value = d.cliente || '';
     return d;
   }
@@ -130,6 +127,19 @@
     if (P.handle) { ctx.strokeStyle = 'rgba(0,0,0,.25)'; ctx.beginPath(); ctx.moveTo(ax + aw / 2, ay - 10); ctx.lineTo(ax + aw / 2, ay + ah + 10); ctx.stroke(); }
     ctx.restore();
     dimV(ctx, ax + aw + 70, ay, ay + ah, `${fmtCm(S.h)} cm`);
+    const mol = P.molde ? MOLDES[P.model] : null;
+    if (mol) {
+      const k = aw / mol.sheet.w;
+      ctx.save(); ctx.setLineDash([10, 8]); ctx.lineWidth = 2.5; ctx.strokeStyle = 'rgba(31,29,26,.6)';
+      ctx.font = font(600, 26); ctx.fillStyle = INK; ctx.textAlign = 'center';
+      mol.pecas.forEach((pc) => {
+        ctx.beginPath(); pc.outline.forEach(([x, y], i) => (i ? ctx.lineTo(ax + x * k, ay + y * k) : ctx.moveTo(ax + x * k, ay + y * k))); ctx.closePath(); ctx.stroke();
+        const cx = pc.outline.reduce((a2, q) => a2 + q[0], 0) / pc.outline.length, cy2 = pc.outline.reduce((a2, q) => a2 + q[1], 0) / pc.outline.length;
+        ctx.fillStyle = 'rgba(255,255,255,.85)'; const t = `${pc.label} · ${fmtCm(pc.w)}×${fmtCm(pc.h)}`; const tw = ctx.measureText(t).width + 16;
+        ctx.fillRect(ax + cx * k - tw / 2, ay + cy2 * k - 22, tw, 32); ctx.fillStyle = INK; ctx.fillText(t, ax + cx * k, ay + cy2 * k + 3);
+      });
+      ctx.restore(); ctx.textAlign = 'left';
+    }
     if (P.handle) {
       ctx.font = font(500, 34); ctx.fillStyle = ACC;
       ctx.fillText('← lado da alça', ax, ay + ah + 62);
@@ -159,15 +169,16 @@
     const rows = [
       ['Produto', d.modelo],
       colorName ? [P.colorLabel || 'Cor', colorName] : null,
-      ['Medida da estampa', `${fmtCm(S.w)} × ${fmtCm(S.h)} cm  (${mm(S.w)} × ${mm(S.h)} mm)`],
+      [P.molde ? 'Folha do molde' : 'Medida da estampa', `${fmtCm(S.w)} × ${fmtCm(S.h)} cm  (${mm(S.w)} × ${mm(S.h)} mm)`],
+      P.molde ? ['Arquivos', 'Um PNG por peça (pasta pecas/) + a folha inteira'] : null,
       ['Arquivo', `PNG ${W} × ${H} px · ${DPI} dpi (tamanho final)`],
       ['Nome do arquivo', fileArt()],
-      P.safe ? ['Margem de segurança', `${fmtCm(P.safe)} mm nas bordas (linha vermelha)`] : ['Fundo', 'Transparente: só imprime o desenho'],
+      P.safe ? ['Margem de segurança', `${fmtCm(P.safe)} mm nas bordas (linha vermelha)`] : (P.molde ? null : ['Fundo', 'Transparente: só imprime o desenho']),
       ...P.notes(S),
       d.qtd ? ['Quantidade', `${d.qtd} ${units(d.qtd)}`] : null,
     ].filter((r) => r && r[1]);
     for (const [key, v] of rows) {
-      y += 62;
+      y += 68;
       ctx.font = font(500, 30); ctx.fillStyle = MUT; ctx.fillText(key, sx + 60, y);
       y += 52;
       ctx.font = font(600, key === 'Nome do arquivo' ? 30 : 40); ctx.fillStyle = INK;
@@ -261,6 +272,22 @@
     const zip = new JSZip();
     zip.file(fileArt(), a);
     zip.file(`manual-${slug()}.pdf`, p);
+    const m = curP().molde ? MOLDES[curP().model] : null;
+    if (m) {
+      const k = W / m.sheet.w;
+      for (const pc of m.pecas) {
+        const pts = pc.outline.map(([x, y]) => [x * k, y * k]);
+        const xs = pts.map((q) => q[0]), ys = pts.map((q) => q[1]);
+        const x0 = Math.floor(Math.min(...xs)), y0 = Math.floor(Math.min(...ys));
+        const c = document.createElement('canvas');
+        c.width = Math.ceil(Math.max(...xs)) - x0; c.height = Math.ceil(Math.max(...ys)) - y0;
+        const g = c.getContext('2d');
+        g.beginPath(); pts.forEach(([x, y], i) => (i ? g.lineTo(x - x0, y - y0) : g.moveTo(x - x0, y - y0))); g.closePath(); g.clip();
+        g.drawImage(cache.art, -x0, -y0);
+        const nome = pc.label.normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '');
+        zip.file(`pecas/${nome}-${fmtCm(pc.w)}x${fmtCm(pc.h)}cm.png`, await new Promise((res) => c.toBlob(res, 'image/png')));
+      }
+    }
     const z = await zip.generateAsync({ type: 'blob' });
     if (my !== prepId || !cache) return;
     ready = { a, p, z, name: `${slug()}-estampa-e-manual.zip` };
