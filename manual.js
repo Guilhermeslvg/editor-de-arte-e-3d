@@ -241,7 +241,7 @@
       if (projectId) saveFileToProject('estampa.png', b).catch(() => {});
     }, 'image/png');
   }
-  $('export').onclick = () => (curP().digital ? quickPng() : openModal());
+  $('export').onclick = () => (curP().print ? Etiqueta.abrirImpressao() : curP().digital ? quickPng() : openModal());
 
   function slug() {
     const d = readForm();

@@ -108,4 +108,15 @@ const PRODUCTS = {
     ],
     notes: () => [],
   },
+  etiqueta: {
+    name: 'Etiqueta de preço', title: 'Etiqueta de preço', na: 'na etiqueta', mock: 'label', safe: 2, print: true, dpi: 600,
+    modelo: 'Etiqueta de papel impressa e recortada',
+    sizes: [
+      { id: '5x5', label: '5 × 5 cm', w: 5, h: 5 },
+      { id: '5x3', label: '5 × 3 cm (deitada)', w: 5, h: 3 },
+      { id: '4x4', label: '4 × 4 cm', w: 4, h: 4 },
+      { id: '6x4', label: '6 × 4 cm (deitada)', w: 6, h: 4 },
+    ],
+    notes: () => [],
+  },
 };

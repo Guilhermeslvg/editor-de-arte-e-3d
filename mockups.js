@@ -257,6 +257,18 @@ const Mock = (() => {
       return { group: g, spin: 'sway', amp: 0.55, elev: 0.15, cover: 1, views: [['Ângulo esquerdo', 0.55], ['Frente', 0], ['Ângulo direito', -0.55]] };
     },
 
+    label(S) {
+      const g = new THREE.Group();
+      const w = S.w, h = S.h, esp = 0.03, M = Math.max(w, h);
+      // caixa escura atrás (a etiqueta colada no produto), fora do enquadramento
+      const caixa = new THREE.Mesh(new THREE.BoxGeometry(M * 2.4, M * 3, 5), std('#1c1b19', 0.4));
+      caixa.position.set(0, h / 2 + 0.6 - M * 1.5, -2.5 - esp / 2); caixa.userData.noFit = true; g.add(caixa);
+      g.add(new THREE.Mesh(new THREE.BoxGeometry(w, h, esp), std(0xffffff, 0.8)));
+      const art = new THREE.Mesh(new THREE.PlaneGeometry(w, h), printMat(0.75));
+      art.position.z = esp / 2 + 0.001; g.add(art);
+      return { group: g, spin: 'sway', amp: 0.45, elev: 0.06, cover: 1, views: [['Ângulo esquerdo', 0.45], ['Frente', 0], ['Ângulo direito', -0.45]] };
+    },
+
     keychain(S) {
       const g = new THREE.Group();
       const w = S.w, h = S.h, m = 0.25, tab = 1.0, dep = 0.3;

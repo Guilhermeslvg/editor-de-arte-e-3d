@@ -133,7 +133,7 @@ function applyProduct(rescale) {
   const oldW = W, oldH = H;
   const maxcm = Math.max(S.w, S.h);
   if (P.digital) { DPI = 72; W = Math.round(S.w); H = Math.round(S.h); }
-  else { DPI = maxcm <= 60 ? 300 : maxcm <= 90 ? 200 : 150; W = Math.round((S.w / 2.54) * DPI); H = Math.round((S.h / 2.54) * DPI); }
+  else { DPI = P.dpi || (maxcm <= 60 ? 300 : maxcm <= 90 ? 200 : 150); W = Math.round((S.w / 2.54) * DPI); H = Math.round((S.h / 2.54) * DPI); }
   canvas.backgroundColor = P.transparent ? null : '#ffffff';
   $('wrap').classList.toggle('transparent', !!P.transparent);
   if (rescale && (oldW !== W || oldH !== H)) {
@@ -153,6 +153,7 @@ function applyProduct(rescale) {
   ensurePecas();
   fit(); updateGuides(); updateInfo();
   if (typeof Garment !== 'undefined') Garment.onProduct();
+  if (typeof Etiqueta !== 'undefined') Etiqueta.onProduct(rescale);
   Mock.set(P, S, state.color, W, H);
   queueMug(true);
   if (rescale) { resetHistory(); markDirty(); }
@@ -238,7 +239,7 @@ function updateGuides() {
 function updateInfo() {
   const P = curP(), S = curS();
   $('sizeInfo').textContent = P.digital ? `${P.name} · ${S.w} × ${S.h} px` : `${P.name} · ${fmtCm(S.w)} × ${fmtCm(S.h)} cm · sai em ${W} × ${H} px (${DPI} dpi)`;
-  $('export').textContent = P.digital ? 'Baixar PNG' : 'Baixar estampa + manual';
+  $('export').textContent = P.print ? 'Baixar pra imprimir' : P.digital ? 'Baixar PNG' : 'Baixar estampa + manual';
   $('customUnit').textContent = (P.digital ? 'em pixels' : 'em centímetros') + ' · aperta Enter pra aplicar';
   $('previewTitle').textContent = P.na.charAt(0).toUpperCase() + P.na.slice(1);
 }
@@ -443,7 +444,7 @@ const active = () => canvas.getActiveObject();
 function refreshProps() {
   const o = active();
   $('propsEmpty').hidden = !!o; $('propsBody').hidden = !o;
-  if (!o) return;
+  if (!o) { if (typeof Etiqueta !== 'undefined') Etiqueta.sync(); return; }
   const isText = o.type === 'i-text';
   const recolor = isText || (o.data && o.data.kind === 'svg' && o.data.color);
   $('rowColor').hidden = !recolor; $('rowFont').hidden = !isText; $('rowBold').hidden = !isText;
@@ -452,6 +453,7 @@ function refreshProps() {
   if (recolor) $('pColor').value = toHex(isText ? o.fill : o.data.color);
   if (isText) { $('pFont').value = o.fontFamily; $('pBold').checked = o.fontWeight === 'bold' || o.fontWeight === 700; }
   $('pOpacity').value = Math.round((o.opacity ?? 1) * 100);
+  if (typeof Etiqueta !== 'undefined') Etiqueta.sync();
 }
 function toHex(c) { if (!c || typeof c !== 'string') return '#ffffff'; if (c[0] === '#' && c.length === 7) return c; return '#' + new fabric.Color(c).toHex(); }
 canvas.on('selection:created', refreshProps);
@@ -523,7 +525,7 @@ document.addEventListener('keydown', (e) => {
   if (mod && e.key.toLowerCase() === 's') { e.preventDefault(); saveProject(true); return; }
   const tag = (e.target.tagName || '').toLowerCase();
   if (tag === 'input' || tag === 'select' || tag === 'textarea') return;
-  if (!$('manualModal').hidden || !$('projModal').hidden) return;
+  if (!$('manualModal').hidden || !$('projModal').hidden || !$('printModal').hidden) return;
   const o = active();
   if (o && o.isEditing) return;
   if (mod && e.key.toLowerCase() === 'z') { e.preventDefault(); e.shiftKey ? restore(hi + 1) : restore(hi - 1); return; }
@@ -623,6 +625,7 @@ function newProject() {
   resetHistory();
   loadingProject = false; dirty = false; setStatus('Novo projeto');
   try { localStorage.removeItem('editor-ultimo-projeto'); } catch (e) {}
+  if (typeof Etiqueta !== 'undefined') Etiqueta.novo();
 }
 async function openProject(id) {
   const p = await Store.load(id);
