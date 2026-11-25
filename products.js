@@ -39,21 +39,21 @@ const PRODUCTS = {
     notes: () => [['Moldura', 'Cobre uns 5 mm de cada lado: nada importante na borda']],
   },
   camiseta: {
-    name: 'Camiseta', title: 'Manual da camiseta', na: 'na camiseta', mock: 'glb', model: 'camiseta', molde: true, safe: 0, transparent: true,
+    name: 'Camiseta', title: 'Manual da camiseta', na: 'na camiseta', mock: 'glb', model: 'camiseta', camElev: 0.22, molde: true, safe: 0, transparent: true,
     modelo: 'Camiseta de malha (molde tamanho M)',
     colorLabel: 'Cor do tecido', colors: TECIDO,
     sizes: [{ id: 'molde-m', label: 'Molde completo · tamanho M', w: 112, h: 108 }],
     notes: () => (MOLDES.camiseta ? [['Peças (cm)', MOLDES.camiseta.pecas.map((p) => `${p.label} ${fmtCm(p.w)}×${fmtCm(p.h)}`).join(' · ')]] : []),
   },
   moletom: {
-    name: 'Moletom', title: 'Manual do moletom', na: 'no moletom', mock: 'glb', model: 'moletom', molde: true, safe: 0, transparent: true,
+    name: 'Moletom', title: 'Manual do moletom', na: 'no moletom', mock: 'glb', model: 'moletom', camElev: 0.04, molde: true, safe: 0, transparent: true,
     modelo: 'Moletom canguru com capuz (molde tamanho M)',
     colorLabel: 'Cor do tecido', colors: TECIDO,
     sizes: [{ id: 'molde-m', label: 'Molde completo · tamanho M', w: 160, h: 191 }],
     notes: () => (MOLDES.moletom ? [['Peças (cm)', MOLDES.moletom.pecas.map((p) => `${p.label} ${fmtCm(p.w)}×${fmtCm(p.h)}`).join(' · ')]] : []),
   },
   sueter: {
-    name: 'Suéter', title: 'Manual do suéter', na: 'no suéter', mock: 'glb', model: 'sueter', molde: true, safe: 0, transparent: true,
+    name: 'Suéter', title: 'Manual do suéter', na: 'no suéter', mock: 'glb', model: 'sueter', camElev: 0.1, molde: true, safe: 0, transparent: true,
     modelo: 'Suéter gola careca em moletom (molde tamanho M)',
     colorLabel: 'Cor do tecido', colors: TECIDO,
     sizes: [{ id: 'molde-m', label: 'Molde completo · tamanho M', w: 140, h: 150 }],
@@ -91,14 +91,11 @@ const PRODUCTS = {
     notes: () => [['Furo', 'Furo da argola fica acima da arte, fora da estampa']],
   },
   bone: {
-    name: 'Boné', title: 'Manual do boné', na: 'no boné', mock: 'cap', safe: 3, transparent: true,
-    modelo: 'Boné americano (frente em espuma/tela)',
+    name: 'Boné', title: 'Manual do boné', na: 'no boné', mock: 'glb', model: 'bone', molde: true, safe: 0, transparent: true, camElev: 0.32,
+    modelo: 'Boné americano 6 gomos (aba curva, fecho regulável)',
     colorLabel: 'Cor', colors: TECIDO,
-    sizes: [
-      { id: '10x6', label: 'Frente · 10 × 6 cm', w: 10, h: 6 },
-      { id: '8x5', label: 'Frente · 8 × 5 cm', w: 8, h: 5 },
-    ],
-    notes: () => [['Posição', 'Frente do boné, centralizada logo acima da aba']],
+    sizes: [{ id: 'molde-u', label: 'Molde completo · tamanho único', w: 70, h: 75 }],
+    notes: () => (MOLDES.bone ? [['Peças (cm)', MOLDES.bone.pecas.map((p) => `${p.label} ${fmtCm(p.w)}×${fmtCm(p.h)}`).join(' · ')]] : []),
   },
   instagram: {
     name: 'Post de Instagram', title: 'Arte digital', na: 'no celular', mock: 'phone', safe: 0, digital: true,

@@ -197,11 +197,16 @@ const Garment = (() => {
     { id: 'mangaD', label: 'Manga direita', peca: 'mangaD', fx: 0.5, dy: 0.45, w: 9, rel: true },
     { id: 'capuz', label: 'Capuz', peca: 'capuzE', fx: 0.5, dy: 0.5, w: 10, rel: true },
     { id: 'bolso', label: 'Bolso', peca: 'bolso', fx: 0.5, dy: 0.5, w: 14, rel: true },
+    { id: 'boneFrente', label: 'Frente do boné', peca: 'frente', fx: 0.5, dy: 0.6, w: 10, rel: true, so: 'bone' },
+    { id: 'boneLadoE', label: 'Lateral esquerda', peca: 'lateralE', fx: 0.5, dy: 0.5, w: 4, rel: true, so: 'bone' },
+    { id: 'boneLadoD', label: 'Lateral direita', peca: 'lateralD', fx: 0.5, dy: 0.5, w: 4, rel: true, so: 'bone' },
+    { id: 'boneTras', label: 'Traseira', peca: 'traseira', fx: 0.5, dy: 0.55, w: 6, rel: true, so: 'bone' },
+    { id: 'boneAba', label: 'Aba', peca: 'aba', fx: 0.5, dy: 0.6, w: 7, rel: true, so: 'bone' },
   ];
   function renderPlace() {
     const m = moldeAtual(), box = $('placeBox'); box.innerHTML = '';
     if (!m) return;
-    PLACES.filter((pl) => m.pecas.some((p) => p.id === pl.peca)).forEach((pl) => {
+    PLACES.filter((pl) => m.pecas.some((p) => p.id === pl.peca) && (curP().model === 'bone' ? pl.so === 'bone' : !pl.so)).forEach((pl) => {
       const b = document.createElement('button'); b.textContent = pl.label;
       b.onclick = () => colocar(pl);
       box.appendChild(b);

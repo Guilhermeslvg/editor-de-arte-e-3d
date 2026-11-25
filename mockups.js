@@ -16,9 +16,9 @@ const Mock = (() => {
     el.appendChild(renderer.domElement);
     scene = new THREE.Scene();
     camera = new THREE.PerspectiveCamera(28, 1, 0.1, 1000);
-    const hemi = new THREE.HemisphereLight(0xffffff, 0xbdb8b0, 0.85); hemi.userData.base = 0.85; hemi.userData.roupa = 0.2; scene.add(hemi);
+    const hemi = new THREE.HemisphereLight(0xffffff, 0xbdb8b0, 0.85); hemi.userData.base = 0.85; hemi.userData.roupa = 0.42; scene.add(hemi);
     const key = new THREE.DirectionalLight(0xffffff, 0.75); key.position.set(3, 4, 5); key.userData.base = 0.75; key.userData.roupa = 0.0; scene.add(key);
-    const lado = ladoLight = new THREE.DirectionalLight(0xfff4e8, 0); lado.position.set(-4, 3.5, 2.5); lado.userData.base = 0; lado.userData.roupa = 0.95; scene.add(lado);
+    const lado = ladoLight = new THREE.DirectionalLight(0xfff4e8, 0); lado.position.set(-4, 3.5, 2.5); lado.userData.base = 0; lado.userData.roupa = 1.1; scene.add(lado);
     const rim = new THREE.DirectionalLight(0xffffff, 0.3); rim.position.set(-4, 2, -3); rim.userData.base = 0.3; rim.userData.roupa = 0.35; scene.add(rim);
     el.addEventListener('pointerdown', (e) => { dragging = true; lastX = e.clientX; lastY = e.clientY; vel = 0; el.setPointerCapture(e.pointerId); });
     el.addEventListener('pointermove', (e) => {
@@ -132,7 +132,7 @@ const Mock = (() => {
   function roupaMat(P) {
     const m = new THREE.MeshStandardMaterial({
       map: texture, aoMap: aoMapa(P.model), aoMapIntensity: look.ao, normalMap: malha(), normalScale: new THREE.Vector2(look.normal, look.normal),
-      envMap: ambiente(), envMapIntensity: 0.42 * look.luz, roughness: look.rough, metalness: 0, side: THREE.DoubleSide,
+      envMap: ambiente(), envMapIntensity: 0.75 * look.luz, roughness: look.rough, metalness: 0, side: THREE.DoubleSide,
     });
     const sheet = (typeof MOLDES !== 'undefined' && MOLDES[P.model]) ? MOLDES[P.model].sheet : { w: 120, h: 110 };
     const rep = new THREE.Vector2(sheet.w / 3.2, sheet.h / 3.2);
@@ -150,7 +150,7 @@ const Mock = (() => {
     roupaMats.forEach((m) => {
       if (m.userData.rep) m.userData.rep.copy(m.userData.rep0).multiplyScalar(1 / look.knit);
       m.aoMapIntensity = look.ao; m.normalScale.set(look.normal, look.normal);
-      m.envMapIntensity = 0.42 * look.luz; m.roughness = look.rough;
+      m.envMapIntensity = 0.75 * look.luz; m.roughness = look.rough;
     });
     if (scene) scene.children.forEach((c) => { if (c.isLight) c.intensity = (isGlb ? c.userData.roupa : c.userData.base) * (isGlb ? look.luz : 1); });
     if (ladoLight) { const a = (look.key * Math.PI) / 180; ladoLight.position.set(4.5 * Math.sin(a), 3.5, 4.5 * Math.cos(a)); }
@@ -167,7 +167,9 @@ const Mock = (() => {
         sc.traverse((o) => {
           if (!o.isMesh) return;
           o.geometry.setAttribute('uv2', o.geometry.attributes.uv);
+          const dentro = o.material && o.material.name === 'dentro';
           o.material = roupaMat(P);
+          if (dentro) o.material.color.setScalar(0.5);  // lado de dentro do tecido fica na sombra
         });
         g.add(sc);
         // sombra suave embaixo (roupa "flutuando" no estúdio)
@@ -184,7 +186,7 @@ const Mock = (() => {
       };
       if (glbCache[P.model]) usar(glbCache[P.model]);
       else new THREE.GLTFLoader().load(`modelos/${P.model}.glb`, (gltf) => { glbCache[P.model] = gltf.scene; usar(gltf.scene); }, undefined, (e) => console.error('modelo 3D', e));
-      return { group: g, spin: 'full', elev: 0.3, start: 0, cover: 0, views: [['Frente', 0], ['Lado', -0.9], ['Costas', Math.PI]] };
+      return { group: g, spin: 'full', elev: P.camElev ?? 0.3, start: 0, cover: 0, views: [['Frente', 0], ['Lado', -0.9], ['Costas', Math.PI]] };
     },
 
     mug(S, color, P) {
@@ -392,8 +394,8 @@ const Mock = (() => {
     isGlb = P.mock === 'glb';
     if (isGlb) texture.flipY = false;
     roupaMats = [];
-    renderer.toneMapping = THREE.NoToneMapping;
-    renderer.toneMappingExposure = 1.05;
+    renderer.toneMapping = isGlb ? THREE.LinearToneMapping : THREE.NoToneMapping;
+    renderer.toneMappingExposure = isGlb ? 1.5 : 1;
     pitch = 0; zoomK = 1;
     setLook({});
     const b = BUILD[P.mock](S, color, P);
@@ -421,6 +423,7 @@ const Mock = (() => {
       shotRenderer.outputEncoding = THREE.sRGBEncoding; shotRenderer.setPixelRatio(1);
     }
     shotRenderer.setSize(w, h, false);
+    shotRenderer.toneMapping = renderer.toneMapping; shotRenderer.toneMappingExposure = renderer.toneMappingExposure;
     const cam = new THREE.PerspectiveCamera(24, w / h, 0.1, 1000);
     const saved = group.rotation.y;
     fit(cam);

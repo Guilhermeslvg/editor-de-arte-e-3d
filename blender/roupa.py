@@ -89,14 +89,21 @@ def seg_len(segs, n): return plen(dict(segs)[n])
 G = {}
 if NOME == 'camiseta':
     # camiseta oversized, ombro caído
-    FR = tronco(29, 72, 27, 69, 9, 73, 29, 45, (27.6, 56), 59)
-    BK = tronco(29, 72, 27, 69, 9, 73, 29, 45, (27.6, 56), 70)
-    SL = manga(24.5, 24.5, 14, 23, (16.5, 17.5), (8, 23))
+    FR = tronco(31, 70, 29.5, 66.5, 10, 70, 31, 40, (30.4, 53), 57)
+    BK = tronco(31, 70, 29.5, 66.5, 10, 70, 31, 40, (30.4, 53), 67.5)
+    SL = manga(22, 24, 12, 20, (16, 15.5), (8, 20))
     neck_len = seg_len(FR, 'neckR') + seg_len(FR, 'neckL') + seg_len(BK, 'neckR') + seg_len(BK, 'neckL')
     GL = round(neck_len * 1.0, 1)
     G = {
-        'label': 'Camiseta oversized', 'z0': 0.80, 'arm_deg': 48, 'arm_len': 0.36, 'bend': 0.9, 'init': 1.08, 'gola_firme': 2.1, 'suave': 4, 'alisar': 32,
-        'manequim': {'peito': (0.2, 0.135), 'quadril': (0.196, 0.13), 'ombros': (0.215, 0.105)},
+        'label': 'Camiseta oversized', 'z0': 0.82, 'arm_deg': 32, 'arm_len': 0.34, 'bend': 1.2, 'init': 1.08, 'gola_firme': 2.2, 'suave': 4, 'alisar': 28,
+        'elipse': (0.27, 0.12), 'espessura': 0.0028,
+        'manequim': {'peito': (0.238, 0.112), 'quadril': (0.236, 0.11), 'ombros': (0.255, 0.098)},
+        'pespontos': [('frente', 'hem', [1.7, 2.3]), ('costas', 'hem', [1.7, 2.3]), ('mangaE', 'hem', [1.7, 2.3]), ('mangaD', 'hem', [1.7, 2.3]),
+                      ('frente', 'armR', [0.7]), ('frente', 'armL', [0.7]), ('costas', 'armR', [0.7]), ('costas', 'armL', [0.7]),
+                      ('frente', 'neckR', [0.6]), ('frente', 'neckL', [0.6]), ('costas', 'neckR', [0.6]), ('costas', 'neckL', [0.6])],
+        'costuras': [('frente', 'armR'), ('frente', 'armL'), ('costas', 'armR'), ('costas', 'armL'), ('frente', 'sideR'), ('frente', 'sideL'),
+                     ('costas', 'sideR'), ('costas', 'sideL'), ('frente', 'shR'), ('frente', 'shL'), ('costas', 'shR'), ('costas', 'shL'),
+                     ('mangaE', 'capR'), ('mangaE', 'capL'), ('mangaD', 'capR'), ('mangaD', 'capL'), ('frente', 'hem'), ('costas', 'hem'), ('mangaE', 'hem'), ('mangaD', 'hem')],
         'pieces': {
             'frente': {'label': 'Frente', 'segs': FR, 'place': ('torso', 'F')},
             'costas': {'label': 'Costas', 'segs': BK, 'place': ('torso', 'B')},
@@ -119,26 +126,32 @@ if NOME == 'camiseta':
         'tacks': [],
     }
 elif NOME == 'moletom':
-    FR = tronco(28, 64, 25, 60, 9.5, 63.5, 28, 40, (25.5, 48), 52)
-    BK = tronco(28, 64, 25, 60, 9.5, 63.5, 28, 40, (25.5, 48), 61.5)
-    SL = manga(13, 23, 44, 56, (15, 49), (7, 56))
-    BAND = round((56 + 56) * 0.9, 1)
+    FR = tronco(32, 64, 30, 57.5, 10, 61.5, 32, 35, (31, 45), 50)
+    BK = tronco(32, 64, 30, 57.5, 10, 61.5, 32, 35, (31, 45), 59.5)
+    SL = manga(14, 25.5, 44, 53, (17, 48.5), (8, 53))
+    BAND = round((64 + 64) * 0.86, 1)
     CUFF = 22
     HOOD = [
-        ('baseF', bez((0, 0), (7, -1.2), (13, -0.5))),
-        ('baseB', bez((13, -0.5), (19, 0.2), (25, 3))),
-        ('costura', bez3((25, 3), (31, 16), (28, 33), (13, 38))),
-        ('topo', bez((13, 38), (6, 38.5), (0, 36))),
-        ('rosto', bez((0, 36), (1.5, 18), (0, 0))),
+        ('baseF', bez((0, 0), (7.5, -1.3), (14, -0.5))),
+        ('baseB', bez((14, -0.5), (20.5, 0.2), (27, 3.2))),
+        ('costura', bez3((27, 3.2), (33.5, 17.5), (30.5, 35.5), (14, 41))),
+        ('topo', bez((14, 41), (6.5, 41.5), (0, 39))),
+        ('rosto', bez((0, 39), (1.6, 19.5), (0, 0))),
     ]
     POCKET = [
-        ('baixo', line((-20, 0), (20, 0))),
-        ('abreD', bez((20, 0), (19.5, 11), (14, 19))),
-        ('topo', line((14, 19), (-14, 19))),
-        ('abreE', bez((-14, 19), (-19.5, 11), (-20, 0))),
+        ('baixo', line((-22, 0), (22, 0))),
+        ('abreD', bez((22, 0), (21.5, 12.5), (15.5, 21))),
+        ('topo', line((15.5, 21), (-15.5, 21))),
+        ('abreE', bez((-15.5, 21), (-21.5, 12.5), (-22, 0))),
     ]
     G = {
-        'label': 'Moletom canguru', 'z0': 0.86, 'arm_deg': 60, 'arm_len': 0.62, 'pose': 'bolso', 'bend': 0.5, 'corpo': 1.2, 'fundo': 1.25, 'init': 1.06, 'alisar': 10,
+        'label': 'Moletom canguru', 'z0': 0.86, 'arm_deg': 68, 'arm_len': 0.6, 'bend': 1.0, 'init': 1.06, 'alisar': 16, 'espessura': 0.004,
+        'elipse': (0.27, 0.12), 'manequim': {'peito': (0.24, 0.115), 'quadril': (0.236, 0.112), 'ombros': (0.255, 0.1)},
+        'pespontos': [('punhoE', 'topo', [0.5]), ('punhoD', 'topo', [0.5]), ('barra', 'topoA', [0.5]), ('barra', 'topoB', [0.5]),
+                      ('bolso', 'topo', [0.6]), ('bolso', 'baixo', [0.6]), ('bolso', 'abreD', [0.8]), ('bolso', 'abreE', [0.8])],
+        'costuras': [('frente', 'armR'), ('frente', 'armL'), ('costas', 'armR'), ('costas', 'armL'), ('frente', 'sideR'), ('frente', 'sideL'),
+                     ('costas', 'sideR'), ('costas', 'sideL'), ('mangaE', 'capR'), ('mangaE', 'capL'), ('mangaD', 'capR'), ('mangaD', 'capL'),
+                     ('mangaE', 'hem'), ('mangaD', 'hem'), ('frente', 'hem'), ('costas', 'hem'), ('capuzE', 'costura'), ('capuzD', 'costura')],
         'pieces': {
             'frente': {'label': 'Frente', 'segs': FR, 'place': ('torso', 'F')},
             'costas': {'label': 'Costas', 'segs': BK, 'place': ('torso', 'B')},
@@ -170,14 +183,19 @@ elif NOME == 'moletom':
         'tacks': [('bolso', 'baixo', 'frente'), ('bolso', 'topo', 'frente')],
     }
 elif NOME == 'sueter':
-    FR = tronco(28, 64, 25, 60, 9, 63.5, 28, 40, (25.5, 48), 57)
-    BK = tronco(28, 64, 25, 60, 9, 63.5, 28, 40, (25.5, 48), 62)
-    SL = manga(13, 23, 44, 56, (15, 49), (7, 56))
-    BAND = round((56 + 56) * 0.9, 1); CUFF = 22
+    FR = tronco(32, 64, 30, 57.5, 9.5, 61.5, 32, 35, (31, 45), 55)
+    BK = tronco(32, 64, 30, 57.5, 9.5, 61.5, 32, 35, (31, 45), 60)
+    SL = manga(14, 25.5, 44, 53, (17, 48.5), (8, 53))
+    BAND = round((64 + 64) * 0.86, 1); CUFF = 22
     neck_len = seg_len(FR, 'neckR') + seg_len(FR, 'neckL') + seg_len(BK, 'neckR') + seg_len(BK, 'neckL')
     GL = round(neck_len * 1.0, 1)
     G = {
-        'label': 'Suéter gola careca', 'z0': 0.86, 'arm_deg': 60, 'arm_len': 0.62, 'bend': 0.5, 'corpo': 1.12, 'init': 1.05, 'alisar': 14, 'gola_firme': 3.0,
+        'label': 'Suéter gola careca', 'z0': 0.86, 'arm_deg': 62, 'arm_len': 0.6, 'bend': 1.0, 'init': 1.06, 'alisar': 16, 'espessura': 0.004,
+        'elipse': (0.27, 0.12), 'manequim': {'peito': (0.25, 0.12), 'quadril': (0.245, 0.118), 'ombros': (0.275, 0.11)}, 'pescoco': 0.062, 'shz': 0.585, 'cabide': True,
+        'pespontos': [('punhoE', 'topo', [0.5]), ('punhoD', 'topo', [0.5]), ('barra', 'topoA', [0.5]), ('barra', 'topoB', [0.5])],
+        'costuras': [('frente', 'armR'), ('frente', 'armL'), ('costas', 'armR'), ('costas', 'armL'), ('frente', 'sideR'), ('frente', 'sideL'),
+                     ('costas', 'sideR'), ('costas', 'sideL'), ('mangaE', 'capR'), ('mangaE', 'capL'), ('mangaD', 'capR'), ('mangaD', 'capL'),
+                     ('mangaE', 'hem'), ('mangaD', 'hem'), ('frente', 'hem'), ('costas', 'hem')],
         'pieces': {
             'frente': {'label': 'Frente', 'segs': FR, 'place': ('torso', 'F')},
             'costas': {'label': 'Costas', 'segs': BK, 'place': ('torso', 'B')},
@@ -235,7 +253,7 @@ for _ in range(3):
         set_n(a, n); set_n(b, n)
 
 # ---------------- empacota as peças numa folha ----------------
-GAP = 5; SHEET_W = {'moletom': 160, 'sueter': 140}.get(NOME, 132)
+GAP = 5; SHEET_W = {'moletom': 160, 'sueter': 150}.get(NOME, 140)
 boxes = []
 for pname, pc in P.items():
     xs = [x for _, pts in pc['segs'] for x, _ in pts]; ys = [y for _, pts in pc['segs'] for _, y in pts]
@@ -252,7 +270,7 @@ SHEET_H = math.ceil(cy + row_h + GAP)
 Z0 = G['z0']
 FW = max(x for _, pts in P['frente']['segs'] for x, _ in pts)
 CIRC_REST = 4 * FW * CM
-_A, _B = 0.19, 0.135
+_A, _B = G.get('elipse', (0.19, 0.135))
 _T = [i * 2 * math.pi / 4000 for i in range(4001)]
 _P = [(_A * math.sin(t), -_B * math.cos(t)) for t in _T]
 _S = [0.0]
@@ -282,7 +300,7 @@ def torso_pos(fb, x, y, out=0.0):
     if out:
         n = Vector((px, py)).normalized(); px += n.x * out; py += n.y * out
     return Vector((px, py, z))
-SH, SHZ = 0.16, Z0 + 0.60
+SH, SHZ = 0.16, Z0 + G.get('shz', 0.60)
 ARM = math.radians(G['arm_deg'])
 def arm_frame(s):
     a = Vector((s * math.cos(ARM), 0, -math.sin(ARM)))
@@ -478,7 +496,7 @@ body = [
     ellipsoid('peito', (0, 0, 1.30 + zc), G['manequim']['peito'] + (0.21,) if 'manequim' in G else (0.155 * K, 0.10 * KD, 0.21)),
     ellipsoid('quadril', (0, 0, 0.98 + zc), G['manequim']['quadril'] + (0.26,) if 'manequim' in G else (0.15 * K, 0.10 * KD, 0.26)),
     ellipsoid('ombros', (0, 0, SHZ + 0.01), G['manequim']['ombros'] + (0.055,) if 'manequim' in G else (0.175 * K, 0.08 * KD, 0.055)),
-    ellipsoid('pescoco', (0, 0, Z0 + 0.76), (0.05, 0.05, 0.10)),
+    ellipsoid('pescoco', (0, 0, SHZ + 0.16), (G.get('pescoco', 0.05), G.get('pescoco', 0.05), 0.10)),
 ]
 if NOME == 'moletom':
     body.append(ellipsoid('cabeca', (0, 0.015, Z0 + 0.88), (0.088, 0.1, 0.108)))
@@ -510,6 +528,10 @@ for i, v in enumerate(flat3): me.vertices[i].co = v
 cl = ob.modifiers.new('Cloth', 'CLOTH'); cs = cl.settings
 cs.rest_shape_key = kb
 pinos = set(gset)
+if G.get('cabide'):  # decote preso como num cabide: a roupa não escorrega do manequim
+    for pn in ('frente', 'costas'):
+        for sg in ('neckR', 'neckL', 'shR', 'shL'): pinos |= set(seg_idx[(pn, sg)])
+    pinos |= set(piece_verts.get('gola', []))
 if G.get('pose') == 'bolso':
     for pn in ('punhoE', 'punhoD'): pinos |= set(piece_verts.get(pn, []))
 if pinos:
@@ -541,6 +563,14 @@ for f in range(1, FRAMES + 1):
 dg = bpy.context.evaluated_depsgraph_get()
 final = bpy.data.meshes.new_from_object(ob.evaluated_get(dg)); final.name = NOME + '_final'
 res = bpy.data.objects.new(NOME.capitalize(), final); scn.collection.objects.link(res)
+if os.environ.get('ESPETO'):
+    xs = sorted(((v.co.x, v.index) for v in final.vertices))
+    zz = [v.co.z for v in final.vertices]
+    print('x min/max', round(xs[0][0], 3), round(xs[-1][0], 3), 'z', round(min(zz), 3), round(max(zz), 3), flush=True)
+    for x, i in xs[:4] + xs[-4:]: print('  v', i, round(x, 3), flat_of[i], tuple(round(c, 3) for c in final.vertices[i].co), flush=True)
+    pares = [(i, j, (final.vertices[i].co - final.vertices[j].co).length) for i, j in sew]
+    pares.sort(key=lambda t: -t[2])
+    for i, j, d in pares[:5]: print('  par', round(d, 3), flat_of[i], flat_of[j], flush=True)
 if G.get('gola_firme') and 'gola' in P:
     fv = final.vertices
     def loop_final(fb):
@@ -586,8 +616,16 @@ sm = res.modifiers.new('Suave', 'SMOOTH'); sm.factor = 0.5; sm.iterations = G.ge
 if G.get('alisar'):
     # alisa pregas grandes mantendo o volume (a roupa não encolhe)
     ls = res.modifiers.new('Alisar', 'LAPLACIANSMOOTH'); ls.iterations = G['alisar']; ls.lambda_factor = 0.8
-    ls.use_volume_preserve = True; ls.use_normalized = True
+    ls.use_volume_preserve = False; ls.use_normalized = True; ls.lambda_border = 0.0
+    bo = res.modifiers.new('Borda', 'SMOOTH'); bo.factor = 0.6; bo.iterations = 4
+so = None
+if G.get('espessura'):
+    so = res.modifiers.new('Espessura', 'SOLIDIFY'); so.thickness = G['espessura']; so.offset = -1; so.use_even_offset = False; so.use_quality_normals = True
+    so.show_render = False; so.show_viewport = False  # a sombra é assada sem a espessura
+    so.material_offset = 1; so.material_offset_rim = 0  # lado de dentro do tecido usa o material 'dentro'
 mat = bpy.data.materials.new('estampa'); mat.use_nodes = True; final.materials.append(mat)
+if G.get('espessura'):
+    mdentro = bpy.data.materials.new('dentro'); mdentro.use_nodes = True; final.materials.append(mdentro)
 
 # sombra de dobra (AO) assada no molde
 AO_W = 2048; AO_H = round(2048 * SHEET_H / SHEET_W)
@@ -602,10 +640,34 @@ bpy.ops.object.bake(type='AO')
 import numpy as np
 px = np.empty(AO_W * AO_H * 4, dtype=np.float32); img.pixels.foreach_get(px)
 px = px.reshape(-1, 4); px[:, :3] = 0.38 + 0.62 * px[:, :3]  # sombra mais escura vira cinza, nunca preto
+img2 = px[:, 0].reshape(AO_H, AO_W).copy()
+def marca(x, y, fator, raio=1):
+    c = int((x) / SHEET_W * AO_W); r = int((y) / SHEET_H * AO_H)
+    if raio <= 1:
+        if 0 <= r < AO_H and 0 <= c < AO_W: img2[r, c] *= fator
+        return
+    r0, r1, c0, c1 = max(0, r - raio + 1), min(AO_H, r + raio), max(0, c - raio + 1), min(AO_W, c + raio)
+    img2[r0:r1, c0:c1] *= fator
+def linha_offset(pname, sname, off, fator, tracejado):
+    pc = P[pname]; ox, oy = pc['sheet']; poly = [p for _, pts in pc['segs'] for p in pts]
+    pts = resample(dict(pc['segs'])[sname], max(8, int(plen(dict(pc['segs'])[sname]) * 12)))
+    for i in range(len(pts) - 1):
+        (x0, y0), (x1, y1) = pts[i], pts[i + 1]
+        dx, dy = x1 - x0, y1 - y0; L = math.hypot(dx, dy) or 1
+        nx, ny = -dy / L, dx / L
+        if not inside((x0 + nx * 0.3, y0 + ny * 0.3), poly): nx, ny = -nx, -ny
+        if tracejado and (i % 7) >= 4: continue
+        marca(x0 + nx * off + ox, y0 + ny * off + oy, fator, 1 if tracejado else 2)
+for pname, sname, offs in G.get('pespontos', []):
+    for off in offs: linha_offset(pname, sname, off, 0.72, True)
+for pname, sname in G.get('costuras', []):
+    linha_offset(pname, sname, 0.12, 0.8, False)
+px[:, 0] = px[:, 1] = px[:, 2] = img2.ravel()
 img.pixels.foreach_set(px.ravel())
 img.filepath_raw = os.path.join(OUT, NOME + '-ao.png'); img.file_format = 'PNG'; img.save()
 nodes.remove(tex)
 print('AO ok', flush=True)
+if so is not None: so.show_render = True; so.show_viewport = True
 
 bpy.ops.export_scene.gltf(filepath=os.path.join(OUT, NOME + '.glb'), use_selection=True, export_apply=True,
                           export_texcoords=True, export_normals=True, export_materials='PLACEHOLDER', export_yup=True)
