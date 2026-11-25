@@ -97,6 +97,7 @@ const Etiqueta = (() => {
     aplicando = true;
     try {
       await fontes();
+      remedirTextos();
       if (!curP().print) return;
       const p = precoObj(), txt = p ? p.text : PRECO_INICIAL;
       if (modeloAtual() === id) {   // mesmo modelo (ex.: trocou a medida): mantém as cores
@@ -348,7 +349,9 @@ const Etiqueta = (() => {
   async function abrirImpressao() {
     $('prTitle').textContent = `Folha pra imprimir · ${curP().name} ${sizeName()}`;
     $('printModal').hidden = false; $('prLoading').hidden = false;
+    await fontesDoJson(JSON.parse(snapshot()));
     await fontes();
+    remedirTextos();
     montar();
     $('prLoading').hidden = true;
   }

@@ -43,6 +43,31 @@ function fit() {
 }
 window.addEventListener('resize', () => { fit(); Mock.resize(); });
 
+/* ---------- fontes ----------
+   O fabric mede cada letra uma vez e guarda. Se medir antes da fonte carregar, guarda a medida da fonte reserva
+   e depois desenha a fonte certa nas posições erradas (letras encavaladas). Por isso: carrega antes e remede depois. */
+function fontesDoJson(json) {
+  const set = new Set();
+  const walk = (o) => {
+    if (!o) return;
+    if (Array.isArray(o)) { o.forEach(walk); return; }
+    if (o.fontFamily) set.add(`${o.fontStyle === 'italic' ? 'italic ' : ''}${o.fontWeight || 'normal'} 100px "${String(o.fontFamily).replace(/"/g, '')}"`);
+    walk(o.objects);
+  };
+  walk(json && json.objects);
+  return Promise.all([...set].map((f) => document.fonts.load(f).catch(() => {})));
+}
+function remedirTextos() {
+  fabric.util.clearFabricFontCache();
+  const re = (o) => {
+    if (o.type === 'group') { o.getObjects().forEach(re); return; }
+    if (typeof o.text === 'string' && o.initDimensions) { o.initDimensions(); o.setCoords(); o.dirty = true; }
+  };
+  canvas.getObjects().forEach(re);
+  canvas.requestRenderAll(); queueMug();
+}
+document.fonts.addEventListener('loadingdone', remedirTextos);
+
 /* ---------- histórico ---------- */
 let hist = [], hi = -1, muted = false;
 function snapshot() { return JSON.stringify(canvas.toJSON(PROPS)); }
@@ -635,10 +660,11 @@ async function openProject(id) {
   manualData = p.manual || {};
   $('clienteName').value = manualData.cliente || '';
   if (p.look && typeof Garment !== 'undefined') Garment.setLook(p.look);
+  await fontesDoJson(p.canvas);
   fillProductUI(); applyProduct(false);
   await new Promise((res) => {
     muted = true;
-    canvas.loadFromJSON(p.canvas, () => { findBase(); const f = fundoObj(); fundoId = f ? f.data.id : null; markFundos(); muted = false; ensurePecas(); canvas.requestRenderAll(); res(); });
+    canvas.loadFromJSON(p.canvas, () => { fabric.util.clearFabricFontCache(); findBase(); const f = fundoObj(); fundoId = f ? f.data.id : null; markFundos(); muted = false; ensurePecas(); remedirTextos(); res(); });
   });
   resetHistory(); queueMug(true); refreshProps();
   loadingProject = false; dirty = false; clearTimeout(autosaveT);
